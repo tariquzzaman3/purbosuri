@@ -1,0 +1,30 @@
+# Dependencies and build output
+node_modules/
+dist/
+build/
+.gradle/
+*.apk
+*.aab
+
+# Local-only files and secrets: never commit these
+.env
+.env.*
+!.env.example
+local.properties
+*.jks
+*.keystore
+service-account*.json
+google-services.json
+serviceAccountKey*.json
+
+# Firebase local state
+.firebase/
+firebase-debug.log*
+firestore-debug.log
+ui-debug.log
+
+# Editors and OS
+.idea/
+.vscode/
+.DS_Store
+*.iml
