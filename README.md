@@ -12,11 +12,13 @@ Milestone 1 (foundation) is in progress. Nothing is deployed yet.
 
 | Area | State |
 | --- | --- |
-| Firebase project settings | Added |
-| Security rules (Firestore, Storage) | Not started |
+| Firebase project settings | Done |
+| Data model ([docs/DATA_MODEL.md](docs/DATA_MODEL.md)) | Written |
+| Firestore security rules | Written, test results pending (see Actions tab) |
+| Rules tests | Written, run automatically by GitHub Actions |
+| Photo and media storage | Undecided. Firebase Storage needs a paid plan |
 | Web app | Not started |
 | Android app | Not started |
-| Build and deploy automation (GitHub Actions) | Not started |
 
 ## Principles
 

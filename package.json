@@ -1,0 +1,16 @@
+{
+  "name": "purbosuri",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Purbosuri: free Bengali family tree and memories platform",
+  "scripts": {
+    "test:rules": "firebase emulators:exec --only firestore --project demo-purbosuri \"vitest run\""
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^4.0.0",
+    "firebase": "^11.0.0",
+    "firebase-tools": "^14.0.0",
+    "vitest": "^2.0.0"
+  }
+}

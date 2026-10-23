@@ -1,0 +1,414 @@
+rules_version = '2';
+
+// Purbosuri Firestore security rules.
+//
+// Everything lives under /trees/{treeId}. Access is decided by the caller's
+// membership document at /trees/{treeId}/members/{uid}. A user who has no
+// membership document in a tree can read and write nothing in it.
+//
+// Roles: owner > reviewer > contributor > viewer
+//   viewer       reads only
+//   contributor  adds people, relationships, memories, media records,
+//                proposals, comments and votes. Cannot edit or delete
+//                existing people/relationships (must propose a change).
+//   reviewer     edits records and decides proposals (not their own)
+//   owner        everything a reviewer can, plus manages members
+//
+// No Cloud Functions are used (they need a paid plan), so these rules are
+// the only enforcement layer. Anything not matched below is denied.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- helpers ----------
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function memberDoc(treeId, uid) {
+      return /databases/$(database)/documents/trees/$(treeId)/members/$(uid);
+    }
+
+    function isMember(treeId) {
+      return signedIn() && exists(memberDoc(treeId, request.auth.uid));
+    }
+
+    function myRole(treeId) {
+      return get(memberDoc(treeId, request.auth.uid)).data.role;
+    }
+
+    function isOwner(treeId) {
+      return isMember(treeId) && myRole(treeId) == 'owner';
+    }
+
+    function isReviewer(treeId) {
+      return isMember(treeId) && myRole(treeId) in ['owner', 'reviewer'];
+    }
+
+    function canContribute(treeId) {
+      return isMember(treeId) && myRole(treeId) in ['owner', 'reviewer', 'contributor'];
+    }
+
+    // Optional-field validators: a missing field is fine, a wrong one is not.
+    function optString(d, k, max) {
+      return !(k in d) || (d[k] is string && d[k].size() <= max);
+    }
+
+    function optList(d, k, max) {
+      return !(k in d) || (d[k] is list && d[k].size() <= max);
+    }
+
+    function optMap(d, k) {
+      return !(k in d) || d[k] is map;
+    }
+
+    function optStamp(d) {
+      return !('updatedAt' in d) || d.updatedAt == request.time;
+    }
+
+    // ---------- users (private profile, only the user) ----------
+
+    function validUser(d) {
+      return d.keys().hasOnly(['displayName', 'photoUrl', 'language', 'createdAt'])
+        && d.keys().hasAll(['displayName', 'createdAt'])
+        && d.displayName is string
+        && d.displayName.size() > 0
+        && d.displayName.size() <= 100
+        && optString(d, 'photoUrl', 500)
+        && (!('language' in d) || d.language in ['bn', 'en']);
+    }
+
+    match /users/{uid} {
+      allow read: if isSelf(uid);
+      allow create: if isSelf(uid)
+        && validUser(request.resource.data)
+        && request.resource.data.createdAt == request.time;
+      allow update: if isSelf(uid)
+        && validUser(request.resource.data)
+        && request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if isSelf(uid);
+    }
+
+    // ---------- trees ----------
+
+    function validTree(d) {
+      return d.keys().hasOnly(['name', 'ownerUid', 'createdAt', 'settings'])
+        && d.keys().hasAll(['name', 'ownerUid', 'createdAt'])
+        && d.name is string
+        && d.name.size() > 0
+        && d.name.size() <= 120
+        && optMap(d, 'settings');
+    }
+
+    match /trees/{treeId} {
+      allow read: if isMember(treeId);
+
+      // A tree and its owner membership must be created in the same batch.
+      allow create: if signedIn()
+        && validTree(request.resource.data)
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        && getAfter(memberDoc(treeId, request.auth.uid)).data.role == 'owner';
+
+      allow update: if isOwner(treeId)
+        && validTree(request.resource.data)
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && request.resource.data.createdAt == resource.data.createdAt;
+
+      // Deleting a tree document does not delete its subcollections.
+      // A full tree deletion is done by the client, collection by collection.
+      allow delete: if isOwner(treeId);
+
+      // ---------- members ----------
+
+      function validMember(d) {
+        return d.keys().hasOnly(['role', 'displayName', 'joinedAt'])
+          && d.keys().hasAll(['role', 'displayName', 'joinedAt'])
+          && d.role in ['owner', 'reviewer', 'contributor', 'viewer']
+          && d.displayName is string
+          && d.displayName.size() <= 100;
+      }
+
+      match /members/{memberUid} {
+        allow read: if isMember(treeId);
+
+        // The creator of a tree becomes its owner (same batch as the tree).
+        allow create: if memberUid == request.auth.uid
+          && validMember(request.resource.data)
+          && request.resource.data.role == 'owner'
+          && request.resource.data.joinedAt == request.time
+          && getAfter(/databases/$(database)/documents/trees/$(treeId)).data.ownerUid == request.auth.uid;
+
+        // The owner adds other people. Nobody else becomes an owner.
+        allow create: if isOwner(treeId)
+          && memberUid != request.auth.uid
+          && validMember(request.resource.data)
+          && request.resource.data.role != 'owner'
+          && request.resource.data.joinedAt == request.time;
+
+        // The owner can change someone's role (never to owner, never their own).
+        allow update: if isOwner(treeId)
+          && memberUid != request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role'])
+          && request.resource.data.role in ['reviewer', 'contributor', 'viewer'];
+
+        // The owner can remove others. Anyone except the owner can leave.
+        allow delete: if (isOwner(treeId) && memberUid != request.auth.uid)
+          || (isSelf(memberUid) && isMember(treeId) && myRole(treeId) != 'owner');
+      }
+
+      // ---------- people ----------
+
+      function validPerson(d) {
+        return d.keys().hasOnly([
+            'nameBn', 'nameEn', 'nickname', 'altNames', 'birth', 'death',
+            'birthPlace', 'residence', 'deathPlace', 'occupation', 'bio',
+            'photoMediaId', 'living', 'verification',
+            'createdBy', 'createdAt', 'updatedAt'
+          ])
+          && d.keys().hasAll(['createdBy', 'createdAt'])
+          && optString(d, 'nameBn', 200)
+          && optString(d, 'nameEn', 200)
+          && optString(d, 'nickname', 200)
+          && optList(d, 'altNames', 30)
+          && optMap(d, 'birth')
+          && optMap(d, 'death')
+          && optString(d, 'birthPlace', 300)
+          && optString(d, 'residence', 300)
+          && optString(d, 'deathPlace', 300)
+          && optString(d, 'occupation', 300)
+          && optString(d, 'bio', 10000)
+          && optString(d, 'photoMediaId', 100)
+          && (!('living' in d) || d.living is bool)
+          && (!('verification' in d)
+              || d.verification in ['documented', 'recollection', 'estimated', 'disputed', 'unverified'])
+          && optStamp(d);
+      }
+
+      match /people/{personId} {
+        allow read: if isMember(treeId);
+
+        allow create: if canContribute(treeId)
+          && validPerson(request.resource.data)
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.createdAt == request.time;
+
+        // Contributors change existing people through proposals, not directly.
+        allow update: if isReviewer(treeId)
+          && validPerson(request.resource.data)
+          && request.resource.data.createdBy == resource.data.createdBy
+          && request.resource.data.createdAt == resource.data.createdAt;
+
+        allow delete: if isReviewer(treeId);
+
+        // Phone, email and other contact details: owner and reviewers only.
+        match /private/{docId} {
+          allow read, write: if isReviewer(treeId);
+        }
+      }
+
+      // ---------- relationships ----------
+      // type 'parent': personA is a parent of personB.
+
+      function validRelationship(d) {
+        return d.keys().hasOnly([
+            'personA', 'personB', 'type', 'kind', 'status',
+            'startDate', 'endDate', 'note', 'createdBy', 'createdAt', 'updatedAt'
+          ])
+          && d.keys().hasAll(['personA', 'personB', 'type', 'createdBy', 'createdAt'])
+          && d.personA is string
+          && d.personB is string
+          && d.personA != d.personB
+          && d.type in ['parent', 'spouse', 'sibling', 'other']
+          && (!('kind' in d) || d.kind in ['biological', 'adoptive', 'step', 'foster', 'unknown'])
+          && (!('status' in d) || d.status in ['confirmed', 'uncertain', 'disputed'])
+          && optMap(d, 'startDate')
+          && optMap(d, 'endDate')
+          && optString(d, 'note', 2000)
+          && optStamp(d);
+      }
+
+      match /relationships/{relId} {
+        allow read: if isMember(treeId);
+
+        allow create: if canContribute(treeId)
+          && validRelationship(request.resource.data)
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.createdAt == request.time;
+
+        allow update: if isReviewer(treeId)
+          && validRelationship(request.resource.data)
+          && request.resource.data.createdBy == resource.data.createdBy
+          && request.resource.data.createdAt == resource.data.createdAt;
+
+        allow delete: if isReviewer(treeId);
+      }
+
+      // ---------- memories (stories) ----------
+
+      function validMemory(d) {
+        return d.keys().hasOnly([
+            'title', 'body', 'authorUid', 'personIds', 'mediaIds', 'date',
+            'place', 'tags', 'sources', 'createdAt', 'updatedAt'
+          ])
+          && d.keys().hasAll(['body', 'authorUid', 'createdAt'])
+          && d.body is string
+          && d.body.size() <= 50000
+          && optString(d, 'title', 300)
+          && optList(d, 'personIds', 100)
+          && optList(d, 'mediaIds', 100)
+          && optMap(d, 'date')
+          && optString(d, 'place', 300)
+          && optList(d, 'tags', 30)
+          && optList(d, 'sources', 30)
+          && optStamp(d);
+      }
+
+      match /memories/{memoryId} {
+        allow read: if isMember(treeId);
+
+        allow create: if canContribute(treeId)
+          && validMemory(request.resource.data)
+          && request.resource.data.authorUid == request.auth.uid
+          && request.resource.data.createdAt == request.time;
+
+        allow update: if canContribute(treeId)
+          && (resource.data.authorUid == request.auth.uid || isReviewer(treeId))
+          && validMemory(request.resource.data)
+          && request.resource.data.authorUid == resource.data.authorUid
+          && request.resource.data.createdAt == resource.data.createdAt;
+
+        allow delete: if canContribute(treeId)
+          && (resource.data.authorUid == request.auth.uid || isReviewer(treeId));
+      }
+
+      // ---------- media records (metadata only; files are stored elsewhere) ----------
+
+      function validMedia(d) {
+        return d.keys().hasOnly([
+            'storagePath', 'mediaType', 'caption', 'description', 'date',
+            'place', 'occasion', 'photographer', 'taggedPeople', 'storyIds',
+            'sizeBytes', 'uploadedBy', 'createdAt', 'updatedAt'
+          ])
+          && d.keys().hasAll(['storagePath', 'mediaType', 'uploadedBy', 'createdAt'])
+          && d.storagePath is string
+          && d.storagePath.size() <= 500
+          && d.mediaType in ['image', 'audio', 'document']
+          && optString(d, 'caption', 1000)
+          && optString(d, 'description', 5000)
+          && optMap(d, 'date')
+          && optString(d, 'place', 300)
+          && optString(d, 'occasion', 300)
+          && optString(d, 'photographer', 200)
+          && optList(d, 'taggedPeople', 100)
+          && optList(d, 'storyIds', 100)
+          && optStamp(d);
+      }
+
+      match /media/{mediaId} {
+        allow read: if isMember(treeId);
+
+        allow create: if canContribute(treeId)
+          && validMedia(request.resource.data)
+          && request.resource.data.uploadedBy == request.auth.uid
+          && request.resource.data.createdAt == request.time;
+
+        allow update: if canContribute(treeId)
+          && (resource.data.uploadedBy == request.auth.uid || isReviewer(treeId))
+          && validMedia(request.resource.data)
+          && request.resource.data.uploadedBy == resource.data.uploadedBy
+          && request.resource.data.createdAt == resource.data.createdAt;
+
+        allow delete: if isReviewer(treeId);
+      }
+
+      // ---------- edit proposals, comments and votes ----------
+
+      match /proposals/{proposalId} {
+        allow read: if isMember(treeId);
+
+        allow create: if canContribute(treeId)
+          && request.resource.data.keys().hasOnly([
+               'targetType', 'targetId', 'field', 'oldValue', 'newValue',
+               'reason', 'evidenceIds', 'status', 'proposedBy', 'createdAt'
+             ])
+          && request.resource.data.keys().hasAll(
+               ['targetType', 'targetId', 'reason', 'status', 'proposedBy', 'createdAt'])
+          && request.resource.data.targetType in ['person', 'relationship', 'memory', 'media']
+          && request.resource.data.targetId is string
+          && request.resource.data.reason is string
+          && request.resource.data.reason.size() <= 5000
+          && request.resource.data.status == 'pending'
+          && request.resource.data.proposedBy == request.auth.uid
+          && request.resource.data.createdAt == request.time;
+
+        // Only reviewers decide, and only the decision fields can change.
+        // A non-owner reviewer cannot decide their own proposal.
+        allow update: if isReviewer(treeId)
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['status', 'decision', 'reviewedBy', 'reviewedAt'])
+          && request.resource.data.status in ['under_review', 'approved', 'rejected', 'more_info']
+          && request.resource.data.reviewedBy == request.auth.uid
+          && request.resource.data.reviewedAt == request.time
+          && optString(request.resource.data, 'decision', 2000)
+          && (resource.data.proposedBy != request.auth.uid || myRole(treeId) == 'owner');
+
+        // Proposals are never deleted: they are part of the permanent history.
+        allow delete: if false;
+
+        match /comments/{commentId} {
+          allow read: if isMember(treeId);
+          allow create: if canContribute(treeId)
+            && request.resource.data.keys().hasOnly(['authorUid', 'text', 'createdAt'])
+            && request.resource.data.keys().hasAll(['authorUid', 'text', 'createdAt'])
+            && request.resource.data.authorUid == request.auth.uid
+            && request.resource.data.text is string
+            && request.resource.data.text.size() > 0
+            && request.resource.data.text.size() <= 5000
+            && request.resource.data.createdAt == request.time;
+          allow update, delete: if false;
+        }
+
+        // One vote per person, document id = voter's uid.
+        // Votes are community opinion only; a reviewer still decides.
+        match /votes/{voterUid} {
+          allow read: if isMember(treeId);
+          allow create, update: if canContribute(treeId)
+            && voterUid == request.auth.uid
+            && request.resource.data.keys().hasOnly(['value', 'votedAt'])
+            && request.resource.data.keys().hasAll(['value', 'votedAt'])
+            && request.resource.data.value in ['agree', 'disagree', 'need_info']
+            && request.resource.data.votedAt == request.time;
+          allow delete: if isSelf(voterUid) && canContribute(treeId);
+        }
+      }
+
+      // ---------- audit log (append-only) ----------
+
+      match /audit/{entryId} {
+        allow read: if isMember(treeId);
+        allow create: if canContribute(treeId)
+          && request.resource.data.keys().hasOnly([
+               'action', 'targetType', 'targetId', 'before', 'after',
+               'reason', 'actorUid', 'createdAt'
+             ])
+          && request.resource.data.keys().hasAll(
+               ['action', 'targetType', 'targetId', 'actorUid', 'createdAt'])
+          && request.resource.data.actorUid == request.auth.uid
+          && request.resource.data.createdAt == request.time;
+        allow update, delete: if false;
+      }
+    }
+
+    // Everything else, including anything not yet built (invitations,
+    // notifications, tree matching), is denied.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
