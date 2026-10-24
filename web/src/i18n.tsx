@@ -21,9 +21,19 @@ const bn = {
   langBn: 'বাংলা',
   langEn: 'English',
 
-  welcomeTitle: 'আপনার পরিবারের গল্প, আপনার নিয়ন্ত্রণে',
-  welcomeBody:
-    'আপনার বংশবৃক্ষ ডিফল্টভাবে ব্যক্তিগত। অ্যাপ শেয়ার করলে কারও পরিবারের তথ্য শেয়ার হয় না।',
+  welcomeTitle: 'পরিবারের গল্প, আপনার নিয়ন্ত্রণে',
+  welcomeBody: 'বংশবৃক্ষ, ছবি আর স্মৃতি এক জায়গায় সাজিয়ে রাখুন। সম্পূর্ণ বিনামূল্যে, কোনো বিজ্ঞাপন ছাড়া।',
+  feat1Title: 'বংশবৃক্ষ ও তালিকা',
+  feat1Desc: 'কয়েক প্রজন্মের সম্পর্ক এক নজরে, দত্তক, সৎ ও পালক সম্পর্কসহ।',
+  feat2Title: 'ছবি ও স্মৃতিচারণ',
+  feat2Desc: 'ছবিতে আত্মীয়দের চিহ্নিত করুন, দাদা-দাদির গল্প লিখে রাখুন।',
+  feat3Title: 'জন্মদিন ও স্মরণ দিবস',
+  feat3Desc: 'গুরুত্বপূর্ণ তারিখের অনুস্মারক, আপনি যেগুলো চান শুধু সেগুলো।',
+  feat4Title: 'সবার সম্মতিতে সংশোধন',
+  feat4Desc: 'ভুল হলে সদস্যরা সংশোধনের প্রস্তাব দেন, আলোচনা হয়, পর্যালোচক সিদ্ধান্ত নেন।',
+  feat5Title: 'ডিফল্টভাবে ব্যক্তিগত',
+  feat5Desc: 'আমন্ত্রণ ছাড়া কেউ আপনার বংশবৃক্ষ দেখতে পায় না। অ্যাপ শেয়ার করলে কারও তথ্য শেয়ার হয় না।',
+  featNote: 'সুবিধাগুলো ধাপে ধাপে যুক্ত হচ্ছে।',
   setupMissingTitle: 'সেটআপ এখনো সম্পূর্ণ হয়নি',
   setupMissingBody:
     'এই সংস্করণে Firebase-এর সংযোগ তথ্য বসানো হয়নি, তাই অ্যাকাউন্ট তৈরি বা লগইন করা যাচ্ছে না।',
@@ -92,8 +102,18 @@ const en: typeof bn = {
   langEn: 'English',
 
   welcomeTitle: 'Your family story, in your control',
-  welcomeBody:
-    'Your family tree is private by default. Sharing the app never shares anyone’s family information.',
+  welcomeBody: 'Keep your family tree, photos and memories in one place. Completely free, with no ads.',
+  feat1Title: 'Family tree and list',
+  feat1Desc: 'Generations at a glance, including adoptive, step and foster relationships.',
+  feat2Title: 'Photos and stories',
+  feat2Desc: 'Tag relatives in photos and write down your grandparents’ stories.',
+  feat3Title: 'Birthdays and remembrance days',
+  feat3Desc: 'Reminders for important dates, only the ones you choose.',
+  feat4Title: 'Corrections with family consent',
+  feat4Desc: 'Members propose fixes, discuss them, and a reviewer makes the final call.',
+  feat5Title: 'Private by default',
+  feat5Desc: 'Nobody sees your tree without an invitation. Sharing the app never shares anyone’s information.',
+  featNote: 'Features are being added step by step.',
   setupMissingTitle: 'Setup is not finished yet',
   setupMissingBody:
     'This version has no Firebase connection details, so sign-up and sign-in are unavailable.',

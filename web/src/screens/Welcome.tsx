@@ -1,11 +1,19 @@
 import { useState, type FormEvent } from 'react';
 import { errorKey, useAuth } from '../auth';
-import { useI18n } from '../i18n';
+import { useI18n, type TKey } from '../i18n';
 import { LanguageSwitch } from './LanguageSwitch';
 
 type Mode = 'signin' | 'register' | 'reset';
 
 const MIN_PASSWORD = 8;
+
+const FEATURES: Array<{ title: TKey; desc: TKey }> = [
+  { title: 'feat1Title', desc: 'feat1Desc' },
+  { title: 'feat2Title', desc: 'feat2Desc' },
+  { title: 'feat3Title', desc: 'feat3Desc' },
+  { title: 'feat4Title', desc: 'feat4Desc' },
+  { title: 'feat5Title', desc: 'feat5Desc' },
+];
 
 export function Welcome() {
   const { t } = useI18n();
@@ -76,6 +84,16 @@ export function Welcome() {
       <section className="card auth-card">
         <h1>{t('welcomeTitle')}</h1>
         <p className="muted">{t('welcomeBody')}</p>
+
+        <ul className="features">
+          {FEATURES.map((f) => (
+            <li key={f.title}>
+              <strong>{t(f.title)}</strong>
+              <span>{t(f.desc)}</span>
+            </li>
+          ))}
+        </ul>
+        <p className="muted small">{t('featNote')}</p>
 
         {!configured ? (
           <div className="banner warn" role="alert">
