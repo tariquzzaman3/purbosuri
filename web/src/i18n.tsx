@@ -8,6 +8,8 @@ import {
   type ReactNode,
 } from 'react';
 
+import { treeBn, treeEn } from './i18n-tree';
+
 export type Lang = 'bn' | 'en';
 
 const bn = {
@@ -88,6 +90,7 @@ const bn = {
   sectionMemories: 'স্মৃতিচারণ ও টাইমলাইন',
   sectionCalendar: 'জন্মদিন ও গুরুত্বপূর্ণ তারিখ',
   notBuilt: 'এই অংশটি এখনো তৈরি হয়নি।',
+  ...treeBn,
 };
 
 const en: typeof bn = {
@@ -167,6 +170,7 @@ const en: typeof bn = {
   sectionMemories: 'Stories and timeline',
   sectionCalendar: 'Birthdays and important dates',
   notBuilt: 'This part is not built yet.',
+  ...treeEn,
 };
 
 export type TKey = keyof typeof bn;

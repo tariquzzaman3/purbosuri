@@ -221,6 +221,52 @@ describe('creating trees and membership', () => {
   });
 });
 
+describe('my list of trees', () => {
+  const entry = () => ({ name: 'Tree A', addedAt: serverTimestamp() });
+
+  it('a member can list their own tree', async () => {
+    await assertSucceeds(setDoc(doc(db('alice'), 'users/alice/trees/treeA'), entry()));
+    await assertSucceeds(getDoc(doc(db('alice'), 'users/alice/trees/treeA')));
+  });
+
+  it('a user cannot list a tree they do not belong to', async () => {
+    await assertFails(setDoc(doc(db('bob'), 'users/bob/trees/treeA'), entry()));
+    await assertFails(setDoc(doc(db('dina'), 'users/dina/trees/treeA'), entry()));
+  });
+
+  it("a user cannot write into someone else's list", async () => {
+    await assertFails(setDoc(doc(db('bob'), 'users/alice/trees/treeB'), entry()));
+    await assertFails(setDoc(doc(db('alice'), 'users/carl/trees/treeA'), entry()));
+  });
+
+  it('nobody can read another user list', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users/alice/trees/treeA'), {
+        name: 'Tree A',
+        addedAt: Timestamp.now(),
+      });
+    });
+    await assertFails(getDoc(doc(db('bob'), 'users/alice/trees/treeA')));
+  });
+
+  it('a new tree can be created and listed in one batch', async () => {
+    const d = db('dina');
+    const batch = writeBatch(d);
+    batch.set(doc(d, 'trees/treeD'), {
+      name: 'Dina family',
+      ownerUid: 'dina',
+      createdAt: serverTimestamp(),
+    });
+    batch.set(doc(d, 'trees/treeD/members/dina'), {
+      role: 'owner',
+      displayName: 'Dina',
+      joinedAt: serverTimestamp(),
+    });
+    batch.set(doc(d, 'users/dina/trees/treeD'), { name: 'Dina family', addedAt: serverTimestamp() });
+    await assertSucceeds(batch.commit());
+  });
+});
+
 describe('people and relationships', () => {
   const newPerson = (uid: string) => ({
     nameBn: 'নতুন',
