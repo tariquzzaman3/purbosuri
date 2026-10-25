@@ -12,7 +12,6 @@ const FEATURES: Array<{ title: TKey; desc: TKey }> = [
   { title: 'feat2Title', desc: 'feat2Desc' },
   { title: 'feat3Title', desc: 'feat3Desc' },
   { title: 'feat4Title', desc: 'feat4Desc' },
-  { title: 'feat5Title', desc: 'feat5Desc' },
 ];
 
 export function Welcome() {
