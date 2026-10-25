@@ -49,6 +49,8 @@ export interface TreeRef {
   name: string;
   /** Who created the tree (the admin). Known once the tree itself has loaded. */
   ownerUid?: string;
+  /** Which of the person's five tree slots this tree takes. */
+  slot?: number;
 }
 
 /** The editable fields of a person, as the form handles them. */
