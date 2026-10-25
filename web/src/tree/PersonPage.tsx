@@ -8,7 +8,7 @@ import {
   wouldCreateCycle,
   type WarningCode,
 } from '../data/graph';
-import { formatDate, lifeSpan, personName } from '../data/format';
+import { formatDate, lifeSpan, num, personName } from '../data/format';
 import { KIND_KEYS, VERIFICATION_KEYS, relationshipBadges } from '../data/labels';
 import { addRelationship, deletePerson, removeRelationship } from '../data/mutations';
 import type { Person, RelKind, Relationship } from '../data/types';
@@ -279,6 +279,10 @@ function Profile({ person }: { person: Person }) {
           <Detail label={t('fNickname')} value={person.nickname} />
           <Detail label={t('fStatus')} value={status} />
           <Detail label={t('fBirth')} value={formatDate(person.birth, lang, approx)} />
+          <Detail
+            label={t('fBirthOrder')}
+            value={person.birthOrder ? num(person.birthOrder, lang) : undefined}
+          />
           <Detail label={t('fBirthPlace')} value={person.birthPlace} />
           <Detail label={t('fDeath')} value={formatDate(person.death, lang, approx)} />
           <Detail label={t('fDeathPlace')} value={person.deathPlace} />

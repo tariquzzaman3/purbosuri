@@ -102,8 +102,22 @@ input {
 
 .brand {
   display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.brand-names {
+  display: flex;
   align-items: baseline;
   gap: 8px;
+  flex-wrap: wrap;
+}
+
+.logo {
+  flex: none;
+  display: block;
 }
 
 .brand-bn {
@@ -764,4 +778,170 @@ fieldset.field legend {
 
 .details dd {
   margin: 0;
+}
+
+/* ---------- Top-right menu ---------- */
+.topbar {
+  flex-wrap: nowrap;
+}
+
+.menu {
+  position: relative;
+  flex: none;
+}
+
+.menu-btn {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.menu-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 50;
+  min-width: 250px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
+}
+
+.menu-user {
+  margin: 4px 8px 8px;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.menu-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 8px 10px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 4px;
+}
+
+.menu-item {
+  display: block;
+  width: 100%;
+  min-height: 46px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  text-decoration: none;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.menu-item:hover {
+  background: #f1ead9;
+}
+
+/* ---------- Chart: glass controls and full screen ---------- */
+.chart-frame {
+  position: relative;
+}
+
+.chart-frame.full {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: var(--bg);
+}
+
+.chart-frame.full .chart-box {
+  height: 100%;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+}
+
+.chart-glass,
+.chart-select,
+.chart-notice {
+  position: absolute;
+  background: rgba(255, 255, 255, 0.55);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.14);
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .chart-glass,
+  .chart-select,
+  .chart-notice {
+    background: rgba(255, 255, 255, 0.92);
+  }
+}
+
+.chart-glass {
+  top: calc(10px + env(safe-area-inset-top));
+  left: calc(10px + env(safe-area-inset-left));
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-width: calc(100% - 20px);
+  padding: 6px;
+  border-radius: 16px;
+}
+
+.glass-btn {
+  display: grid;
+  place-items: center;
+  min-width: 42px;
+  height: 42px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.65);
+  color: var(--ink);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.glass-btn:hover {
+  background: rgba(255, 255, 255, 0.95);
+}
+
+.glass-btn.text {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.chart-select {
+  left: calc(10px + env(safe-area-inset-left));
+  right: calc(10px + env(safe-area-inset-right));
+  bottom: calc(10px + env(safe-area-inset-bottom));
+  padding: 10px 12px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.chart-select .panel-actions {
+  margin-top: 6px;
+}
+
+.chart-notice {
+  top: calc(66px + env(safe-area-inset-top));
+  left: calc(10px + env(safe-area-inset-left));
+  max-width: calc(100% - 20px);
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 0.9rem;
 }

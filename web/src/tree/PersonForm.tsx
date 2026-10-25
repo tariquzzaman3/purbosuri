@@ -176,6 +176,7 @@ function Form({ person }: { person?: Person }) {
   const [status, setStatus] = useState<Status>(statusOf(person));
   const [birth, setBirth] = useState<DateInput>(person ? fromDate(person.birth) : emptyDate());
   const [death, setDeath] = useState<DateInput>(person ? fromDate(person.death) : emptyDate());
+  const [birthOrder, setBirthOrder] = useState(person?.birthOrder?.toString() ?? '');
   const [birthPlace, setBirthPlace] = useState(person?.birthPlace ?? '');
   const [residence, setResidence] = useState(person?.residence ?? '');
   const [deathPlace, setDeathPlace] = useState(person?.deathPlace ?? '');
@@ -203,11 +204,23 @@ function Form({ person }: { person?: Person }) {
       return;
     }
 
+    // Birth order is optional: 1 to 30, Bangla or English digits.
+    let order: number | undefined;
+    const orderText = asciiDigits(birthOrder);
+    if (orderText) {
+      order = Number(orderText);
+      if (!Number.isInteger(order) || order < 1 || order > 30) {
+        setError(t('errBirthOrder'));
+        return;
+      }
+    }
+
     const fields: PersonFields = {
       nameBn,
       nameEn,
       nickname,
       birth: b.value,
+      birthOrder: order,
       death: d.value,
       birthPlace,
       residence,
@@ -309,6 +322,17 @@ function Form({ person }: { person?: Person }) {
         </label>
 
         <DateFields label={t('fBirth')} value={birth} onChange={setBirth} />
+        <label className="field">
+          <span>{t('fBirthOrder')}</span>
+          <small>{t('fBirthOrderHint')}</small>
+          <input
+            type="text"
+            inputMode="numeric"
+            maxLength={2}
+            value={birthOrder}
+            onChange={(e) => setBirthOrder(e.target.value)}
+          />
+        </label>
         {status !== 'living' && <DateFields label={t('fDeath')} value={death} onChange={setDeath} />}
 
         <TextField label={t('fBirthPlace')} value={birthPlace} onChange={setBirthPlace} max={300} />

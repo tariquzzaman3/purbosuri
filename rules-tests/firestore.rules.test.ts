@@ -310,6 +310,16 @@ describe('people and relationships', () => {
     );
   });
 
+  it('accepts a birth order from 1 to 30 and rejects anything else', async () => {
+    const ref = (id: string) => doc(db('carl'), `trees/treeA/people/${id}`);
+    await assertSucceeds(setDoc(ref('o1'), { ...newPerson('carl'), birthOrder: 1 }));
+    await assertSucceeds(setDoc(ref('o2'), { ...newPerson('carl'), birthOrder: 30 }));
+    await assertFails(setDoc(ref('o3'), { ...newPerson('carl'), birthOrder: 0 }));
+    await assertFails(setDoc(ref('o4'), { ...newPerson('carl'), birthOrder: 31 }));
+    await assertFails(setDoc(ref('o5'), { ...newPerson('carl'), birthOrder: 1.5 }));
+    await assertFails(setDoc(ref('o6'), { ...newPerson('carl'), birthOrder: 'first' }));
+  });
+
   it('approximate and uncertain information is accepted', async () => {
     await assertSucceeds(
       setDoc(doc(db('carl'), 'trees/treeA/people/p3'), {

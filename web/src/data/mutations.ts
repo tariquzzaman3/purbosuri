@@ -33,6 +33,7 @@ const PERSON_KEYS: Array<keyof PersonFields> = [
   'nameEn',
   'nickname',
   'birth',
+  'birthOrder',
   'death',
   'birthPlace',
   'residence',

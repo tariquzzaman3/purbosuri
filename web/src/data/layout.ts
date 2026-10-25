@@ -7,9 +7,13 @@ const SIBLING_GAP = 26;
 const ROOT_GAP = 56;
 const LEVEL_GAP = 66;
 
+/** Width of one person's card. The chart passes widths measured from the names. */
+export type WidthOf = (personId: string) => number;
+
 export interface PlacedCard {
   id: string;
   x: number;
+  w: number;
   y: number;
   gen: number;
   isSpouse: boolean;
@@ -39,10 +43,11 @@ interface Measured {
   kids: Measured[];
 }
 
-function measure(node: UnitNode): Measured {
-  const count = 1 + node.spouses.length;
-  const unitWidth = count * CARD_W + (count - 1) * SPOUSE_GAP;
-  const kids = node.children.map(measure);
+function measure(node: UnitNode, widthOf: WidthOf): Measured {
+  const members = [node.person, ...node.spouses];
+  const unitWidth =
+    members.reduce((sum, p) => sum + widthOf(p.id), 0) + (members.length - 1) * SPOUSE_GAP;
+  const kids = node.children.map((k) => measure(k, widthOf));
   const kidsWidth = kids.length
     ? kids.reduce((s, k) => s + k.width, 0) + SIBLING_GAP * (kids.length - 1)
     : 0;
@@ -53,7 +58,7 @@ function measure(node: UnitNode): Measured {
  * Lays the forest out top to bottom. Each family unit is centred over its children,
  * and sibling subtrees never overlap.
  */
-export function layoutForest(forest: UnitNode[]): ChartLayout {
+export function layoutForest(forest: UnitNode[], widthOf: WidthOf = () => CARD_W): ChartLayout {
   const cards: PlacedCard[] = [];
   const childLines: Array<{ points: string }> = [];
   const spouseLines: Line[] = [];
@@ -66,9 +71,10 @@ export function layoutForest(forest: UnitNode[]): ChartLayout {
     const unitCenter = left + m.width / 2;
 
     const members = [m.node.person, ...m.node.spouses];
+    let x = unitLeft;
     members.forEach((person, i) => {
-      const x = unitLeft + i * (CARD_W + SPOUSE_GAP);
-      cards.push({ id: person.id, x, y, gen: m.node.gen, isSpouse: i > 0 });
+      const w = widthOf(person.id);
+      cards.push({ id: person.id, x, w, y, gen: m.node.gen, isSpouse: i > 0 });
       if (i > 0) {
         spouseLines.push({
           x1: x - SPOUSE_GAP,
@@ -77,6 +83,7 @@ export function layoutForest(forest: UnitNode[]): ChartLayout {
           y2: y + CARD_H / 2,
         });
       }
+      x += w + SPOUSE_GAP;
     });
 
     let cursor = left + (m.width - m.kidsWidth) / 2;
@@ -94,7 +101,7 @@ export function layoutForest(forest: UnitNode[]): ChartLayout {
   };
 
   let cursor = 0;
-  const measured = forest.map(measure);
+  const measured = forest.map((n) => measure(n, widthOf));
   measured.forEach((m, i) => {
     place(m, cursor, 0);
     cursor += m.width + (i < measured.length - 1 ? ROOT_GAP : 0);

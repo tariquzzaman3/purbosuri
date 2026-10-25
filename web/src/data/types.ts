@@ -16,6 +16,8 @@ export interface Person {
   nameEn?: string;
   nickname?: string;
   birth?: FlexDate;
+  /** Place among siblings, 1 = eldest. Breaks ties for twins and unknown dates. */
+  birthOrder?: number;
   death?: FlexDate;
   birthPlace?: string;
   residence?: string;

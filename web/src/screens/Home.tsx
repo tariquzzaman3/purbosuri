@@ -1,7 +1,8 @@
-import { NavLink, Route, Routes, useNavigate } from 'react-router-dom';
+import { Link, NavLink, Route, Routes, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth';
 import { useI18n, type TKey } from '../i18n';
-import { LanguageSwitch } from './LanguageSwitch';
+import { Logo } from './Logo';
+import { MenuButton } from './MenuButton';
 import { TreeProvider } from '../tree/TreeContext';
 import { ChartPage } from '../tree/ChartView';
 import { ListPage } from '../tree/ListView';
@@ -33,24 +34,22 @@ const NAV: Array<{ to: string; label: TKey; end?: boolean }> = [
 
 export function Home() {
   const { t } = useI18n();
-  const { user, logOut } = useAuth();
+  const { user } = useAuth();
 
   return (
     <TreeProvider>
       <div className="page">
         <header className="topbar">
-          <span className="brand">
-            <span className="brand-bn" lang="bn">
-              {t('bnName')}
+          <Link to="/home" className="brand">
+            <Logo size={38} />
+            <span className="brand-names">
+              <span className="brand-bn" lang="bn">
+                {t('bnName')}
+              </span>
+              <span className="brand-en">{t('appName')}</span>
             </span>
-            <span className="brand-en">{t('appName')}</span>
-          </span>
-          <div className="topbar-actions">
-            <LanguageSwitch />
-            <button type="button" className="btn small" onClick={() => void logOut()}>
-              {t('logout')}
-            </button>
-          </div>
+          </Link>
+          <MenuButton />
         </header>
 
         <main>
