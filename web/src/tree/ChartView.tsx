@@ -380,14 +380,16 @@ function Chart() {
                 <polyline key={i} points={l.points} className="chart-line" />
               ))}
               {layout.spouseLines.map((l, i) => (
-                <line key={i} x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2} className="chart-line spouse" />
+                <polyline key={i} points={l.points} className="chart-line spouse" />
               ))}
               {layout.cards.map((c) => {
                 const p = graph.people.get(c.id);
                 const info = cardInfo.get(c.id);
                 if (!p || !info) return null;
                 const isSel = c.id === selectedId;
-                const genText = `${t('genLabel')} ${num(c.gen + 1, lang)}`;
+                const genText = c.isSpouse
+                  ? `⚭ ${t('spouseWord')}`
+                  : `${t('genLabel')} ${num(c.gen + 1, lang)}`;
                 const onKey = (e: KeyboardEvent<SVGGElement>) => {
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
@@ -413,6 +415,7 @@ function Chart() {
                       fill={FILLS[c.gen % 6]}
                       stroke={STROKES[c.gen % 6]}
                       strokeWidth={isSel ? 4 : 1.5}
+                      strokeDasharray={c.isSpouse ? '6 4' : undefined}
                     />
                     <text x={c.w / 2} y={23} textAnchor="middle" className="card-name">
                       {info.name}
