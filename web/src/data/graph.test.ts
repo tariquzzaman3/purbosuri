@@ -244,3 +244,87 @@ describe('chart layout', () => {
     expect(layout.width).toBeGreaterThan(30 * CARD_W);
   });
 });
+
+describe('sibling order (eldest first)', () => {
+  const order = (kids: Person[]) => {
+    const g = buildGraph(
+      [person('p'), ...kids],
+      kids.map((k) => parent('p', k.id)),
+    );
+    return buildForest(g)[0].children.map((c) => c.person.id);
+  };
+
+  it('orders by year, then month, then day', () => {
+    expect(
+      order([
+        person('a', { birth: { year: 1990, month: 5, day: 10 } }),
+        person('b', { birth: { year: 1990, month: 2, day: 20 } }),
+        person('c', { birth: { year: 1989, month: 12, day: 31 } }),
+        person('d', { birth: { year: 1990, month: 5, day: 2 } }),
+      ]),
+    ).toEqual(['c', 'b', 'd', 'a']);
+  });
+
+  it('uses the birth order number for twins', () => {
+    const born = { year: 1990, month: 5, day: 10 };
+    expect(
+      order([
+        person('second', { birth: born, birthOrder: 2 }),
+        person('first', { birth: born, birthOrder: 1 }),
+      ]),
+    ).toEqual(['first', 'second']);
+  });
+
+  it('uses the birth order number when birth dates are unknown', () => {
+    expect(
+      order([
+        person('x', { birthOrder: 3 }),
+        person('y', { birthOrder: 1 }),
+        person('z', { birthOrder: 2 }),
+      ]),
+    ).toEqual(['y', 'z', 'x']);
+  });
+
+  it('puts people without a birth year after those with one', () => {
+    expect(order([person('unknown'), person('known', { birth: { year: 2001 } })])).toEqual([
+      'known',
+      'unknown',
+    ]);
+  });
+
+  it('shows the eldest first in the chart layout too', () => {
+    const g = buildGraph(
+      [
+        person('p'),
+        person('young', { birth: { year: 2000 } }),
+        person('old', { birth: { year: 1990 } }),
+      ],
+      [parent('p', 'young'), parent('p', 'old')],
+    );
+    const layout = layoutForest(buildForest(g));
+    const x = (id: string) => layout.cards.find((c) => c.id === id)!.x;
+    expect(x('old')).toBeLessThan(x('young'));
+  });
+});
+
+describe('chart layout with cards of different widths', () => {
+  it('never lets neighbouring cards overlap', () => {
+    const widths: Record<string, number> = { kid1: 280, kid2: 120, mum: 220 };
+    const layout = layoutForest(buildForest(family()), (id) => widths[id] ?? CARD_W);
+
+    const rows = new Map<number, Array<{ x: number; w: number }>>();
+    for (const c of layout.cards) rows.set(c.y, [...(rows.get(c.y) ?? []), { x: c.x, w: c.w }]);
+    for (const row of rows.values()) {
+      row.sort((a, b) => a.x - b.x);
+      for (let i = 1; i < row.length; i++) {
+        expect(row[i].x).toBeGreaterThanOrEqual(row[i - 1].x + row[i - 1].w);
+      }
+    }
+  });
+
+  it('records the width of each card', () => {
+    const layout = layoutForest(buildForest(family()), (id) => (id === 'dad' ? 300 : CARD_W));
+    expect(layout.cards.find((c) => c.id === 'dad')!.w).toBe(300);
+    expect(layout.cards.find((c) => c.id === 'mum')!.w).toBe(CARD_W);
+  });
+});

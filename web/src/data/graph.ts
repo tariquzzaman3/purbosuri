@@ -172,11 +172,30 @@ export interface UnitNode {
 
 const nameKey = (p: Person) => p.nameBn ?? p.nameEn ?? '';
 
-function byBirthThenName(a: Person, b: Person): number {
-  const ya = a.birth?.year ?? Number.POSITIVE_INFINITY;
-  const yb = b.birth?.year ?? Number.POSITIVE_INFINITY;
-  if (ya !== yb) return ya < yb ? -1 : 1;
-  return nameKey(a).localeCompare(nameKey(b));
+/**
+ * Eldest first. People with a known birth year come before those without one.
+ * Among them the order is year, month, day (an unknown month or day counts as
+ * earliest). Anything still tied, such as twins or people with no dates at all,
+ * is ordered by the optional birth order number, then by name.
+ */
+export function byBirthThenName(a: Person, b: Person): number {
+  const ya = a.birth?.year;
+  const yb = b.birth?.year;
+  if (ya !== undefined && yb === undefined) return -1;
+  if (ya === undefined && yb !== undefined) return 1;
+  if (ya !== undefined && yb !== undefined) {
+    if (ya !== yb) return ya - yb;
+    const ma = a.birth?.month ?? 0;
+    const mb = b.birth?.month ?? 0;
+    if (ma !== mb) return ma - mb;
+    const da = a.birth?.day ?? 0;
+    const db = b.birth?.day ?? 0;
+    if (da !== db) return da - db;
+  }
+  const oa = a.birthOrder ?? Number.POSITIVE_INFINITY;
+  const ob = b.birthOrder ?? Number.POSITIVE_INFINITY;
+  if (oa !== ob) return oa < ob ? -1 : 1;
+  return nameKey(a).localeCompare(nameKey(b)) || a.id.localeCompare(b.id);
 }
 
 /**

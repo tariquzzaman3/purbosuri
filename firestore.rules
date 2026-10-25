@@ -183,7 +183,7 @@ service cloud.firestore {
 
       function validPerson(d) {
         return d.keys().hasOnly([
-            'nameBn', 'nameEn', 'nickname', 'altNames', 'birth', 'death',
+            'nameBn', 'nameEn', 'nickname', 'altNames', 'birth', 'birthOrder', 'death',
             'birthPlace', 'residence', 'deathPlace', 'occupation', 'bio',
             'photoMediaId', 'living', 'verification',
             'createdBy', 'createdAt', 'updatedAt'
@@ -194,6 +194,7 @@ service cloud.firestore {
           && optString(d, 'nickname', 200)
           && optList(d, 'altNames', 30)
           && optMap(d, 'birth')
+          && (!('birthOrder' in d) || (d.birthOrder is int && d.birthOrder >= 1 && d.birthOrder <= 30))
           && optMap(d, 'death')
           && optString(d, 'birthPlace', 300)
           && optString(d, 'residence', 300)

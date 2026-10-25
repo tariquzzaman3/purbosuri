@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { errorKey, useAuth } from '../auth';
 import { useI18n, type TKey } from '../i18n';
 import { LanguageSwitch } from './LanguageSwitch';
+import { Logo } from './Logo';
 
 type Mode = 'signin' | 'register' | 'reset';
 
@@ -72,10 +73,13 @@ export function Welcome() {
     <main className="page auth-page">
       <div className="topbar">
         <span className="brand">
-          <span className="brand-bn" lang="bn">
-            {t('bnName')}
+          <Logo size={38} />
+          <span className="brand-names">
+            <span className="brand-bn" lang="bn">
+              {t('bnName')}
+            </span>
+            <span className="brand-en">{t('appName')}</span>
           </span>
-          <span className="brand-en">{t('appName')}</span>
         </span>
         <LanguageSwitch />
       </div>
