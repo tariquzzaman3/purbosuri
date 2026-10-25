@@ -105,7 +105,7 @@ export function layoutForest(forest: UnitNode[], widthOf: WidthOf = () => CARD_W
   measured.forEach((m) => walk(m, 0));
   const rowH = rowHasSpouses.map((h) => (h ? CARD_H + SPOUSE_DROP + CARD_H : CARD_H));
   const rowY: number[] = [];
-  rowH.forEach((h, d) => {
+  rowH.forEach((_h, d) => {
     rowY[d] = d === 0 ? 0 : rowY[d - 1] + rowH[d - 1] + LEVEL_GAP;
   });
 

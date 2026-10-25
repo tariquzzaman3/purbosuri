@@ -4,7 +4,6 @@ import { useI18n } from '../i18n';
 import { buildForest, type Graph, type UnitNode } from '../data/graph';
 import { formatDate, lifeSpan, num, personName } from '../data/format';
 import { relationshipBadges } from '../data/labels';
-import type { Person } from '../data/types';
 import { TreeScreen } from './TreeScreen';
 import { useTree } from './TreeContext';
 
