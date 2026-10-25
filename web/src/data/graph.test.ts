@@ -305,6 +305,62 @@ describe('several spouses', () => {
   });
 });
 
+describe('marriage between cousins', () => {
+  // grandpa has sons s1 and s2. c1 (child of s1) marries c2 (child of s2); their child is kid.
+  const cousins = () =>
+    buildGraph(
+      [
+        person('grandpa'),
+        person('s1', { birth: { year: 1950 } }),
+        person('s2', { birth: { year: 1955 } }),
+        person('c1'),
+        person('c2'),
+        person('kid'),
+      ],
+      [
+        parent('grandpa', 's1'),
+        parent('grandpa', 's2'),
+        parent('s1', 'c1'),
+        parent('s2', 'c2'),
+        spouse('c1', 'c2'),
+        parent('c1', 'kid'),
+        parent('c2', 'kid'),
+      ],
+    );
+
+  it('shows every person once in the tree, with the child under one of the cousins', () => {
+    const forest = buildForest(cousins());
+    expect(forest).toHaveLength(1);
+    expect(countPeople(forest)).toBe(6);
+  });
+
+  it('shows the marriage in both branches as a reference', () => {
+    const root = buildForest(cousins())[0];
+    const unit = (id: string) => findUnit([root], id)!;
+    expect(unit('c1').refs.map((p) => p.id)).toEqual(['c2']);
+    expect(unit('c2').refs.map((p) => p.id)).toEqual(['c1']);
+    // The child hangs from c2 (the reference box) under c1's branch, and nowhere else.
+    expect(unit('c1').children.map((c) => [c.person.id, c.fromId])).toEqual([['kid', 'c2']]);
+    expect(unit('c2').children).toHaveLength(0);
+  });
+
+  it('draws reference boxes without overlap and links the child to the right parent', () => {
+    const layout = layoutForest(buildForest(cousins()));
+    // six people plus two reference boxes
+    expect(layout.cards).toHaveLength(8);
+    expect(layout.cards.filter((c) => c.isRef).map((c) => c.id).sort()).toEqual(['c1', 'c2']);
+    const main = (id: string) => layout.cards.find((c) => c.id === id && !c.isRef)!;
+    expect(main('kid').y).toBeGreaterThan(main('c1').y);
+
+    const rows = new Map<number, Array<{ x: number; w: number }>>();
+    for (const c of layout.cards) rows.set(c.y, [...(rows.get(c.y) ?? []), c]);
+    for (const row of rows.values()) {
+      row.sort((a, b) => a.x - b.x);
+      for (let i = 1; i < row.length; i++) expect(row[i].x).toBeGreaterThanOrEqual(row[i - 1].x + row[i - 1].w);
+    }
+  });
+});
+
 describe('sibling order (eldest first)', () => {
   const order = (kids: Person[]) => {
     const g = buildGraph(

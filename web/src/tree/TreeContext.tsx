@@ -82,31 +82,50 @@ export function TreeProvider({ children }: { children: ReactNode }) {
   }, [uid]);
 
   // Follow each tree's own name and creator, so a rename shows for everyone and a deleted
-  // tree disappears from the list.
+  // tree disappears from the list. A tree only counts as gone when the server itself says so:
+  // while a new tree is still being saved, the server may not know it yet, so a "not found" or
+  // "no permission" answer at that moment must never remove it from the person's list.
   const indexKey = index.map((x) => x.id).join(',');
   useEffect(() => {
     if (!db || !uid) return;
-    const stops = index.map((ref) =>
-      onSnapshot(
-        doc(db!, 'trees', ref.id),
+    const database = db;
+    const timers: number[] = [];
+    const stops: Array<() => void> = [];
+
+    const markGone = (id: string) => {
+      setMeta((m) => ({ ...m, [id]: 'gone' }));
+      void deleteDoc(doc(database, 'users', uid, 'trees', id)).catch(() => undefined);
+    };
+
+    const watch = (ref: TreeRef, attempt: number) => {
+      const stop = onSnapshot(
+        doc(database, 'trees', ref.id),
         (snap) => {
           if (snap.exists()) {
             const d = snap.data();
-            setMeta((m) => ({ ...m, [ref.id]: { name: String(d.name ?? ref.name), ownerUid: String(d.ownerUid ?? '') } }));
-          } else {
-            setMeta((m) => ({ ...m, [ref.id]: 'gone' }));
-            void deleteDoc(doc(db!, 'users', uid, 'trees', ref.id)).catch(() => undefined);
+            setMeta((m) => ({
+              ...m,
+              [ref.id]: { name: String(d.name ?? ref.name), ownerUid: String(d.ownerUid ?? '') },
+            }));
+          } else if (!snap.metadata.fromCache && !snap.metadata.hasPendingWrites) {
+            markGone(ref.id);
           }
         },
         (err) => {
-          if ((err as { code?: string }).code === 'permission-denied') {
-            setMeta((m) => ({ ...m, [ref.id]: 'gone' }));
-            void deleteDoc(doc(db!, 'users', uid, 'trees', ref.id)).catch(() => undefined);
-          }
+          if ((err as { code?: string }).code !== 'permission-denied') return;
+          // Try again a little later; only a repeated refusal means I was removed.
+          if (attempt >= 2) markGone(ref.id);
+          else timers.push(window.setTimeout(() => stops.push(watch(ref, attempt + 1)), 4000 * (attempt + 1)));
         },
-      ),
-    );
-    return () => stops.forEach((stop) => stop());
+      );
+      return stop;
+    };
+
+    index.forEach((ref) => stops.push(watch(ref, 0)));
+    return () => {
+      timers.forEach((id) => window.clearTimeout(id));
+      stops.forEach((stop) => stop());
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uid, indexKey]);
 
