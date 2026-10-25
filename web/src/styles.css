@@ -750,8 +750,18 @@ fieldset.field legend {
   gap: 6px;
 }
 
-.row-spouse {
-  margin-top: 2px;
+.spouse-block {
+  margin-left: 14px; /* half a step in from the person */
+}
+
+.list-row.spouse-row {
+  background: var(--card, #fff);
+  border-left-style: dashed;
+  margin-top: 4px;
+}
+
+.spouse-block > .list-children {
+  margin-top: 4px;
 }
 
 .gen-tag {
