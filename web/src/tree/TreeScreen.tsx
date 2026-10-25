@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useI18n } from '../i18n';
-import { ROLE_KEYS } from '../data/labels';
 import { CreateTree } from './CreateTree';
 import { useTree } from './TreeContext';
 
@@ -13,46 +12,15 @@ function Notice({ text, alert = false }: { text: string; alert?: boolean }) {
   );
 }
 
-function TreeHeader() {
+/** A round "+" button for adding a person, so the chart itself stays uncluttered. */
+function AddFab() {
   const { t } = useI18n();
-  const { trees, current, chooseTree, role, canContribute, canEdit } = useTree();
+  const { canContribute } = useTree();
+  if (!canContribute) return null;
   return (
-    <section className="tree-header">
-      <div className="tree-title">
-        {trees.length > 1 ? (
-          <select
-            aria-label={t('treeSwitchLabel')}
-            value={current?.id}
-            onChange={(e) => chooseTree(e.target.value)}
-          >
-            {trees.map((tree) => (
-              <option key={tree.id} value={tree.id}>
-                {tree.name}
-              </option>
-            ))}
-          </select>
-        ) : (
-          <h2>{current?.name}</h2>
-        )}
-        {role && (
-          <span className="badge role">
-            {t('roleLabel')}: {t(ROLE_KEYS[role])}
-          </span>
-        )}
-      </div>
-      <div className="tree-actions">
-        {canContribute && (
-          <Link className="btn primary small" to="/home/add">
-            + {t('addPerson')}
-          </Link>
-        )}
-        <Link className="btn small" to="/home/new-tree">
-          {t('treeNewButton')}
-        </Link>
-      </div>
-      {!canContribute && <p className="muted small">{t('viewOnlyNote')}</p>}
-      {canContribute && !canEdit && <p className="muted small">{t('contributorNote')}</p>}
-    </section>
+    <Link className="fab" to="/home/add" aria-label={t('addPerson')} title={t('addPerson')}>
+      +
+    </Link>
   );
 }
 
@@ -89,8 +57,8 @@ export function TreeScreen({ children, allowEmpty = false }: { children: ReactNo
 
   return (
     <>
-      <TreeHeader />
       {tree.people.length === 0 && !allowEmpty ? <EmptyPeople /> : children}
+      {tree.people.length > 0 && <AddFab />}
     </>
   );
 }

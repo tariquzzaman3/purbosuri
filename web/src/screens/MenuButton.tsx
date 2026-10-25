@@ -2,13 +2,17 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../auth';
 import { useI18n } from '../i18n';
-import { LanguageSwitch } from './LanguageSwitch';
+import { useTree } from '../tree/TreeContext';
 
-/** The menu at the top right: language, a new tree, and signing out. */
+const APP_URL = 'https://purbosuri.web.app';
+
+/** The menu at the top right. The three bars turn into an X while it is open. */
 export function MenuButton() {
   const { t } = useI18n();
   const { user, logOut } = useAuth();
+  const { current } = useTree();
   const [open, setOpen] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
   const wrap = useRef<HTMLDivElement>(null);
 
   // Close on a tap outside, or on Escape.
@@ -30,19 +34,40 @@ export function MenuButton() {
     };
   }, [open]);
 
+  const shareApp = async () => {
+    // Only the app's address is shared, never anything from a family tree.
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: t('shareTitle'), text: t('shareText'), url: APP_URL });
+        setOpen(false);
+        return;
+      }
+      await navigator.clipboard.writeText(APP_URL);
+      setNote(t('shareCopied'));
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return; // person closed the share sheet
+      setNote(t('shareFailed'));
+    }
+  };
+
+  const close = () => setOpen(false);
+
   return (
     <div className="menu" ref={wrap}>
       <button
         type="button"
         className="menu-btn"
-        aria-label={t('menuLabel')}
+        aria-label={open ? t('menuClose') : t('menuLabel')}
         aria-expanded={open}
         aria-haspopup="true"
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => {
+          setNote(null);
+          setOpen((o) => !o);
+        }}
       >
         <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
           <path
-            d="M4 6h16M4 12h16M4 18h16"
+            d={open ? 'M5 5l14 14M19 5L5 19' : 'M4 6h16M4 12h16M4 18h16'}
             fill="none"
             stroke="currentColor"
             strokeWidth="2.2"
@@ -54,12 +79,20 @@ export function MenuButton() {
       {open && (
         <div className="menu-panel" role="group" aria-label={t('menuLabel')}>
           {user?.displayName && <p className="menu-user">{user.displayName}</p>}
-          <div className="menu-row">
-            <span>{t('language')}</span>
-            <LanguageSwitch />
-          </div>
-          <Link className="menu-item" to="/home/new-tree" onClick={() => setOpen(false)}>
-            {t('treeNewButton')}
+          {current && <p className="menu-tree muted small">{current.name}</p>}
+          <button type="button" className="menu-item" onClick={() => void shareApp()}>
+            {t('menuShare')}
+          </button>
+          {note && (
+            <p className="muted small" role="status">
+              {note}
+            </p>
+          )}
+          <Link className="menu-item" to="/home/trees" onClick={close}>
+            {t('menuTrees')}
+          </Link>
+          <Link className="menu-item" to="/home/settings" onClick={close}>
+            {t('menuSettings')}
           </Link>
           <button type="button" className="menu-item" onClick={() => void logOut()}>
             {t('logout')}

@@ -1,6 +1,7 @@
 import {
   collection,
   deleteField,
+  getDocs,
   doc,
   serverTimestamp,
   updateDoc,
@@ -58,6 +59,35 @@ function relationshipData(uid: string, rel: NewRelationship) {
     createdBy: uid,
     createdAt: serverTimestamp(),
   };
+}
+
+/** One person can create at most this many trees. */
+export const MAX_OWNED_TREES = 5;
+
+/** Renames a tree (the admin only; the rules check this). */
+export async function renameTree(treeId: string, name: string): Promise<void> {
+  const d = database();
+  await updateDoc(doc(d, 'trees', treeId), { name: name.trim() });
+}
+
+/**
+ * Deletes a tree the person created: every person and relationship, then the tree itself,
+ * then the person's own list entry. (Other members' list entries clean themselves up.)
+ */
+export async function deleteTree(treeId: string, uid: string): Promise<void> {
+  const d = database();
+  for (const part of ['relationships', 'people'] as const) {
+    const snap = await getDocs(collection(d, 'trees', treeId, part));
+    for (let i = 0; i < snap.docs.length; i += 400) {
+      const batch = writeBatch(d);
+      snap.docs.slice(i, i + 400).forEach((x) => batch.delete(x.ref));
+      await batch.commit();
+    }
+  }
+  const last = writeBatch(d);
+  last.delete(doc(d, 'trees', treeId));
+  last.delete(doc(d, 'users', uid, 'trees', treeId));
+  await last.commit();
 }
 
 /** Creates a tree, its owner membership and the owner's private list entry together. */

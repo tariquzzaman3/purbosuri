@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { collection, doc, onSnapshot } from 'firebase/firestore';
+import { collection, deleteDoc, doc, onSnapshot } from 'firebase/firestore';
 import { useAuth } from '../auth';
 import { db } from '../firebase';
 import { buildGraph, type Graph } from '../data/graph';
@@ -17,6 +17,8 @@ interface TreeValue {
   /** True once the person's list of trees has loaded. */
   treesLoaded: boolean;
   trees: TreeRef[];
+  /** How many trees this person created (the limit applies to these). */
+  ownedCount: number;
   current: TreeRef | null;
   chooseTree: (id: string) => void;
   role: Role | null;
@@ -50,7 +52,9 @@ export function TreeProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const uid = user?.uid ?? null;
 
-  const [trees, setTrees] = useState<TreeRef[]>([]);
+  const [index, setIndex] = useState<TreeRef[]>([]);
+  // What each tree says about itself. 'gone' means it was deleted or I was removed from it.
+  const [meta, setMeta] = useState<Record<string, { name: string; ownerUid: string } | 'gone'>>({});
   const [treesLoaded, setTreesLoaded] = useState(false);
   const [currentId, setCurrentId] = useState<string | null>(readSavedTree);
 
@@ -67,7 +71,7 @@ export function TreeProvider({ children }: { children: ReactNode }) {
     return onSnapshot(
       collection(db, 'users', uid, 'trees'),
       (snap) => {
-        setTrees(snap.docs.map((d) => ({ id: d.id, name: String(d.data().name ?? '') })));
+        setIndex(snap.docs.map((d) => ({ id: d.id, name: String(d.data().name ?? '') })));
         setTreesLoaded(true);
       },
       () => {
@@ -76,6 +80,47 @@ export function TreeProvider({ children }: { children: ReactNode }) {
       },
     );
   }, [uid]);
+
+  // Follow each tree's own name and creator, so a rename shows for everyone and a deleted
+  // tree disappears from the list.
+  const indexKey = index.map((x) => x.id).join(',');
+  useEffect(() => {
+    if (!db || !uid) return;
+    const stops = index.map((ref) =>
+      onSnapshot(
+        doc(db!, 'trees', ref.id),
+        (snap) => {
+          if (snap.exists()) {
+            const d = snap.data();
+            setMeta((m) => ({ ...m, [ref.id]: { name: String(d.name ?? ref.name), ownerUid: String(d.ownerUid ?? '') } }));
+          } else {
+            setMeta((m) => ({ ...m, [ref.id]: 'gone' }));
+            void deleteDoc(doc(db!, 'users', uid, 'trees', ref.id)).catch(() => undefined);
+          }
+        },
+        (err) => {
+          if ((err as { code?: string }).code === 'permission-denied') {
+            setMeta((m) => ({ ...m, [ref.id]: 'gone' }));
+            void deleteDoc(doc(db!, 'users', uid, 'trees', ref.id)).catch(() => undefined);
+          }
+        },
+      ),
+    );
+    return () => stops.forEach((stop) => stop());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uid, indexKey]);
+
+  const trees = useMemo<TreeRef[]>(
+    () =>
+      index
+        .filter((ref) => meta[ref.id] !== 'gone')
+        .map((ref) => {
+          const m = meta[ref.id];
+          return m && m !== 'gone' ? { id: ref.id, name: m.name, ownerUid: m.ownerUid } : ref;
+        }),
+    [index, meta],
+  );
+  const ownedCount = trees.filter((x) => x.ownerUid === uid).length;
 
   const current = useMemo(
     () => trees.find((t) => t.id === currentId) ?? trees[0] ?? null,
@@ -148,6 +193,7 @@ export function TreeProvider({ children }: { children: ReactNode }) {
     () => ({
       treesLoaded,
       trees,
+      ownedCount,
       current,
       chooseTree,
       role,
@@ -159,7 +205,7 @@ export function TreeProvider({ children }: { children: ReactNode }) {
       canContribute: role === 'owner' || role === 'reviewer' || role === 'contributor',
       canEdit: role === 'owner' || role === 'reviewer',
     }),
-    [treesLoaded, trees, current, chooseTree, role, ready, error, people, rels, graph],
+    [treesLoaded, trees, ownedCount, current, chooseTree, role, ready, error, people, rels, graph],
   );
 
   return <TreeContext.Provider value={value}>{children}</TreeContext.Provider>;

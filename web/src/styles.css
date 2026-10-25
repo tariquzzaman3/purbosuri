@@ -955,3 +955,210 @@ fieldset.field legend {
   border-radius: 12px;
   font-size: 0.9rem;
 }
+
+/* ---------- Floating add button ---------- */
+.fab {
+  position: fixed;
+  right: 16px;
+  bottom: 84px;
+  z-index: 20;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: var(--primary-ink);
+  font-size: 2rem;
+  line-height: 56px;
+  text-align: center;
+  text-decoration: none;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
+}
+
+/* ---------- Menu extras ---------- */
+.menu-tree {
+  margin: 0 0 6px;
+  padding: 0 12px;
+}
+
+/* ---------- Family trees page ---------- */
+.tree-list {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.tree-item {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+}
+
+.tree-item.current {
+  border-color: var(--primary);
+  border-width: 2px;
+}
+
+.tree-item-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.tree-item-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.danger-box {
+  border: 2px solid var(--error);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  display: grid;
+  gap: 8px;
+}
+
+.danger-box h3 {
+  margin: 0;
+  color: var(--error);
+}
+
+/* ---------- Settings ---------- */
+.settings .card {
+  margin-bottom: 14px;
+}
+
+.set-row {
+  margin: 14px 0;
+}
+
+.set-label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.choice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.choice-btn {
+  min-height: 44px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1.5px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+.choice-btn.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-ink);
+  font-weight: 700;
+}
+
+.font-sample {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--bg);
+  border: 1px dashed var(--line);
+}
+
+.set-link {
+  display: block;
+  padding: 12px 0;
+  color: var(--ink);
+  text-decoration: none;
+  border-bottom: 1px solid var(--line);
+}
+
+.set-link:last-child {
+  border-bottom: 0;
+}
+
+/* ---------- Verify email ---------- */
+.verify-logo {
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.verify-email {
+  font-weight: 700;
+  word-break: break-all;
+}
+
+/* ---------- Card text stays dark: the cards are always light ---------- */
+.card-name {
+  fill: #2b2a26;
+}
+.card-span,
+.card-gen {
+  fill: #5f5b52;
+}
+
+/* ---------- Dark theme ---------- */
+:root[data-theme='dark'] {
+  --bg: #15181a;
+  --surface: #1f2427;
+  --ink: #ece8de;
+  --muted: #b3ad9f;
+  --line: #394044;
+  --primary: #5fbf9a;
+  --primary-ink: #0d1d16;
+  --accent: #ea9168;
+  --warn-bg: #3a321c;
+  --warn-line: #8a6d1f;
+  --error: #ff8f7e;
+  --ok: #7fd49b;
+}
+
+:root[data-theme='dark'] .list-row,
+:root[data-theme='dark'] .list-row .muted,
+:root[data-theme='dark'] .list-row .gen-tag {
+  color: #2b2a26;
+}
+:root[data-theme='dark'] .list-row .person-link {
+  color: #14503c;
+}
+:root[data-theme='dark'] .list-row.spouse-row {
+  background: #f4efe4;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']):not([data-theme='dark']) {
+    --bg: #15181a;
+    --surface: #1f2427;
+    --ink: #ece8de;
+    --muted: #b3ad9f;
+    --line: #394044;
+    --primary: #5fbf9a;
+    --primary-ink: #0d1d16;
+    --accent: #ea9168;
+    --warn-bg: #3a321c;
+    --warn-line: #8a6d1f;
+    --error: #ff8f7e;
+    --ok: #7fd49b;
+  }
+  :root:not([data-theme='light']):not([data-theme='dark']) .list-row,
+  :root:not([data-theme='light']):not([data-theme='dark']) .list-row .muted,
+  :root:not([data-theme='light']):not([data-theme='dark']) .list-row .gen-tag {
+    color: #2b2a26;
+  }
+  :root:not([data-theme='light']):not([data-theme='dark']) .list-row .person-link {
+    color: #14503c;
+  }
+  :root:not([data-theme='light']):not([data-theme='dark']) .list-row.spouse-row {
+    background: #f4efe4;
+  }
+}
