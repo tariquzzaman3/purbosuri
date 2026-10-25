@@ -5,6 +5,8 @@ import { AuthProvider, useAuth } from './auth';
 import { Splash } from './screens/Splash';
 import { Welcome } from './screens/Welcome';
 import { Home } from './screens/Home';
+import { VerifyEmail } from './screens/VerifyEmail';
+import { SettingsProvider } from './settings';
 
 function Loading() {
   const { t } = useI18n();
@@ -16,9 +18,10 @@ function Loading() {
 }
 
 function RequireAuth({ children }: { children: ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, loading, needsVerification } = useAuth();
   if (loading) return <Loading />;
   if (!user) return <Navigate to="/welcome" replace />;
+  if (needsVerification) return <VerifyEmail />;
   return <>{children}</>;
 }
 
@@ -77,11 +80,13 @@ function Shell() {
 export function App() {
   return (
     <I18nProvider>
-      <AuthProvider>
-        <BrowserRouter>
-          <Shell />
-        </BrowserRouter>
-      </AuthProvider>
+      <SettingsProvider>
+        <AuthProvider>
+          <BrowserRouter>
+            <Shell />
+          </BrowserRouter>
+        </AuthProvider>
+      </SettingsProvider>
     </I18nProvider>
   );
 }

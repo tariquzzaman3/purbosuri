@@ -1,5 +1,4 @@
 import { Link, NavLink, Route, Routes, useNavigate } from 'react-router-dom';
-import { useAuth } from '../auth';
 import { useI18n, type TKey } from '../i18n';
 import { Logo } from './Logo';
 import { MenuButton } from './MenuButton';
@@ -9,6 +8,9 @@ import { ListPage } from '../tree/ListView';
 import { PersonPage } from '../tree/PersonPage';
 import { AddPersonPage, EditPersonPage } from '../tree/PersonForm';
 import { CreateTree } from '../tree/CreateTree';
+import { TreesPage } from '../tree/TreesPage';
+import { SettingsPage } from './Settings';
+import { AboutPage, PrivacyPage } from './InfoPages';
 
 function NotBuilt({ title }: { title: TKey }) {
   const { t } = useI18n();
@@ -34,7 +36,6 @@ const NAV: Array<{ to: string; label: TKey; end?: boolean }> = [
 
 export function Home() {
   const { t } = useI18n();
-  const { user } = useAuth();
 
   return (
     <TreeProvider>
@@ -53,15 +54,15 @@ export function Home() {
         </header>
 
         <main>
-          <h1 className="greeting">
-            {t('hello')}
-            {user?.displayName ? `, ${user.displayName}` : ''}
-          </h1>
           <Routes>
             <Route index element={<ChartPage />} />
             <Route path="list" element={<ListPage />} />
             <Route path="add" element={<AddPersonPage />} />
             <Route path="new-tree" element={<NewTreePage />} />
+            <Route path="trees" element={<TreesPage />} />
+            <Route path="settings" element={<SettingsPage />} />
+            <Route path="about" element={<AboutPage />} />
+            <Route path="privacy" element={<PrivacyPage />} />
             <Route path="person/:id" element={<PersonPage />} />
             <Route path="person/:id/edit" element={<EditPersonPage />} />
             <Route path="memories" element={<NotBuilt title="sectionMemories" />} />

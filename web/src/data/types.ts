@@ -47,6 +47,8 @@ export interface Relationship {
 export interface TreeRef {
   id: string;
   name: string;
+  /** Who created the tree (the admin). Known once the tree itself has loaded. */
+  ownerUid?: string;
 }
 
 /** The editable fields of a person, as the form handles them. */

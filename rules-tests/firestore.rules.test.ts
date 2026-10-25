@@ -555,6 +555,32 @@ describe('memories', () => {
   });
 });
 
+describe('email verification', () => {
+  const asPassword = (uid: string, verified: boolean): Db =>
+    env.authenticatedContext(uid, { email_verified: verified, firebase: { sign_in_provider: 'password' } }).firestore();
+  const asGoogle = (uid: string): Db =>
+    env.authenticatedContext(uid, { email_verified: true, firebase: { sign_in_provider: 'google.com' } }).firestore();
+
+  const profile = () => ({ displayName: 'Zed', createdAt: serverTimestamp() });
+
+  it('blocks an email-and-password user who has not verified the email', async () => {
+    await assertFails(setDoc(doc(asPassword('zed', false), 'users/zed'), profile()));
+  });
+
+  it('allows the same user once the email is verified', async () => {
+    await assertSucceeds(setDoc(doc(asPassword('zed', true), 'users/zed'), profile()));
+  });
+
+  it('allows a Google user', async () => {
+    await assertSucceeds(setDoc(doc(asGoogle('zed'), 'users/zed'), profile()));
+  });
+
+  it('does not let an unverified member read their tree', async () => {
+    await assertFails(getDoc(doc(asPassword('alice', false), 'trees/treeA')));
+    await assertSucceeds(getDoc(doc(asPassword('alice', true), 'trees/treeA')));
+  });
+});
+
 describe('default deny', () => {
   it('collections that are not built yet are closed', async () => {
     await assertFails(setDoc(doc(db('alice'), 'trees/treeA/invitations/i1'), { x: 1 }));

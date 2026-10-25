@@ -2,19 +2,19 @@
 
 export const treeBn = {
   treeLoading: 'বংশধারা লোড হচ্ছে…',
-  treeLoadError: 'বংশধারায়র তথ্য আনা যায়নি। ইন্টারনেট সংযোগ দেখে আবার চেষ্টা করুন।',
+  treeLoadError: 'বংশধারার তথ্য আনা যায়নি। ইন্টারনেট সংযোগ দেখে আবার চেষ্টা করুন।',
   treeNoneTitle: 'এখনো কোনো বংশধারা নেই',
   treeNoneBody:
     'একটি ব্যক্তিগত বংশধারা তৈরি করুন। আপনি আমন্ত্রণ না দেওয়া পর্যন্ত কেউ এটি দেখতে পাবে না।',
-  treeNameLabel: 'বংশধারায়র নাম',
+  treeNameLabel: 'বংশধারার নাম',
   treeNameHint: 'যেমন: করিম পরিবার',
   treeCreate: 'বংশধারা তৈরি করুন',
-  errTreeName: 'বংশধারায়র একটি নাম লিখুন।',
+  errTreeName: 'বংশধারার একটি নাম লিখুন।',
   treeNewButton: 'নতুন বংশধারা',
   treeSwitchLabel: 'বংশধারা বেছে নিন',
 
   roleLabel: 'আপনার ভূমিকা',
-  roleOwner: 'মালিক',
+  roleOwner: 'পরিচালক',
   roleReviewer: 'পর্যালোচক',
   roleContributor: 'অবদানকারী',
   roleViewer: 'দর্শক',
@@ -53,7 +53,7 @@ export const treeBn = {
   chartShowAll: 'পুরো বংশধারা',
   chartBranchOf: 'শাখা:',
   openProfile: 'প্রোফাইল দেখুন',
-  chartDescription: 'বংশধারায়র চার্ট। প্রতিটি কার্ড একজন ব্যক্তি।',
+  chartDescription: 'বংশধারার চার্ট। প্রতিটি কার্ড একজন ব্যক্তি।',
   fBirthOrder: 'ভাইবোনদের মধ্যে ক্রম',
   fBirthOrderHint: 'জমজ হলে বা জন্মতারিখ অজানা থাকলে দিন। ১ মানে সবচেয়ে বড়।',
   errBirthOrder: 'ক্রম ১ থেকে ৩০-এর মধ্যে একটি সংখ্যা হতে হবে।',
@@ -148,7 +148,7 @@ export const treeEn: typeof treeBn = {
   treeSwitchLabel: 'Choose a family tree',
 
   roleLabel: 'Your role',
-  roleOwner: 'Owner',
+  roleOwner: 'Admin',
   roleReviewer: 'Reviewer',
   roleContributor: 'Contributor',
   roleViewer: 'Viewer',

@@ -9,6 +9,7 @@ import {
 } from 'react';
 import { Link } from 'react-router-dom';
 import { useI18n } from '../i18n';
+import { useSettings } from '../settings';
 import { buildForest, findUnit } from '../data/graph';
 import { CARD_H, CARD_W, layoutForest } from '../data/layout';
 import { lifeSpan, num, personName } from '../data/format';
@@ -24,9 +25,14 @@ const MAX_ZOOM = 2.5;
 const READABLE_ZOOM = 0.7;
 
 // Cards grow to fit the name. These match the text sizes in styles.css.
-const NAME_FONT = '700 15px "Noto Sans Bengali", system-ui, sans-serif';
-const SPAN_FONT = '400 12px "Noto Sans Bengali", system-ui, sans-serif';
-const GEN_FONT = '400 11px "Noto Sans Bengali", system-ui, sans-serif';
+// The fonts follow the person's choice in Settings, read from the page.
+const fontFamily = () =>
+  (typeof document !== 'undefined' &&
+    getComputedStyle(document.documentElement).getPropertyValue('--font').trim()) ||
+  'system-ui, sans-serif';
+const nameFont = () => `700 15px ${fontFamily()}`;
+const spanFont = () => `400 12px ${fontFamily()}`;
+const genFont = () => `400 11px ${fontFamily()}`;
 const CARD_PAD = 28;
 const MIN_CARD_W = 120;
 const MAX_CARD_W = 320;
@@ -65,9 +71,10 @@ function fitText(text: string, font: string, maxPx: number): string {
 }
 
 /** True once the Bangla font has loaded, so measurements use the real glyph widths. */
-function useFontsReady(): boolean {
+function useFontsReady(signature: string): boolean {
   const [ready, setReady] = useState(false);
   useEffect(() => {
+    setReady(false);
     let live = true;
     const done = () => {
       if (live) setReady(true);
@@ -77,8 +84,8 @@ function useFontsReady(): boolean {
         done();
       } else {
         void Promise.all([
-          document.fonts.load(NAME_FONT, 'আ'),
-          document.fonts.load(SPAN_FONT, '১'),
+          document.fonts.load(nameFont(), 'আ'),
+          document.fonts.load(spanFont(), '১'),
         ]).then(done, done);
       }
     } catch {
@@ -87,7 +94,7 @@ function useFontsReady(): boolean {
     return () => {
       live = false;
     };
-  }, []);
+  }, [signature]);
   return ready;
 }
 
@@ -123,7 +130,8 @@ function Chart() {
   const { graph, people } = useTree();
   const unknown = t('unknownName');
   const approx = t('fApprox');
-  const fontsReady = useFontsReady();
+  const { fontSignature } = useSettings();
+  const fontsReady = useFontsReady(fontSignature);
 
   const forest = useMemo(() => buildForest(graph), [graph]);
   const [branchId, setBranchId] = useState<string | null>(null);
@@ -142,17 +150,20 @@ function Chart() {
   // Each card is as wide as its name needs, between a minimum and a maximum.
   const cardInfo = useMemo(() => {
     const info = new Map<string, { name: string; span: string; w: number }>();
-    const genWidth = textWidth(`${t('genLabel')} ${num(88, lang)}`, GEN_FONT);
+    const genWidth = Math.max(
+      textWidth(`${t('genLabel')} ${num(88, lang)}`, genFont()),
+      textWidth(`⚭ ${t('spouseWord')}`, genFont()),
+    );
     for (const p of graph.people.values()) {
       const fullName = personName(p, lang, unknown);
       const span = lifeSpan(p, lang, approx);
-      const wanted = Math.max(textWidth(fullName, NAME_FONT), textWidth(span, SPAN_FONT), genWidth);
+      const wanted = Math.max(textWidth(fullName, nameFont()), textWidth(span, spanFont()), genWidth);
       const w = clamp(Math.ceil(wanted) + CARD_PAD, MIN_CARD_W, MAX_CARD_W);
-      info.set(p.id, { name: fitText(fullName, NAME_FONT, w - CARD_PAD), span, w });
+      info.set(p.id, { name: fitText(fullName, nameFont(), w - CARD_PAD), span, w });
     }
     return info;
     // fontsReady is listed so cards are measured again once the real font arrives.
-  }, [graph, lang, unknown, approx, t, fontsReady]);
+  }, [graph, lang, unknown, approx, t, fontsReady, fontSignature]);
 
   const layout = useMemo(
     () => layoutForest(shown, (id) => cardInfo.get(id)?.w ?? CARD_W),

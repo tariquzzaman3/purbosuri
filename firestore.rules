@@ -22,8 +22,12 @@ service cloud.firestore {
 
     // ---------- helpers ----------
 
+    // Signed in. Someone who signed up with email and password must have verified the
+    // email first; Google and other providers have verified it already.
     function signedIn() {
-      return request.auth != null;
+      return request.auth != null
+        && !(request.auth.token.get('firebase', {}).get('sign_in_provider', '') == 'password'
+             && request.auth.token.get('email_verified', false) != true);
     }
 
     function isSelf(uid) {
