@@ -11,7 +11,7 @@ import {
   siblingIds,
   wouldCreateCycle,
 } from './graph';
-import { layoutForest, CARD_W } from './layout';
+import { layoutForest, CARD_H, CARD_W } from './layout';
 import type { Person, Relationship } from './types';
 
 const person = (id: string, extra: Partial<Person> = {}): Person => ({
@@ -230,7 +230,9 @@ describe('chart layout', () => {
     const y = (id: string) => layout.cards.find((c) => c.id === id)!.y;
     expect(y('dad')).toBeGreaterThan(y('grandpa'));
     expect(y('kid1')).toBeGreaterThan(y('dad'));
-    expect(y('mum')).toBe(y('dad'));
+    // A spouse has her own box, just below.
+    expect(y('mum')).toBeGreaterThan(y('dad'));
+    expect(y('mum')).toBeLessThan(y('kid1'));
   });
 
   it('handles an empty tree and a wide tree', () => {
@@ -242,6 +244,64 @@ describe('chart layout', () => {
     const layout = layoutForest(buildForest(many));
     expect(layout.cards).toHaveLength(31);
     expect(layout.width).toBeGreaterThan(30 * CARD_W);
+  });
+});
+
+describe('several spouses', () => {
+  const multi = () =>
+    buildGraph(
+      [
+        person('a'),
+        person('s1'),
+        person('s2'),
+        person('k1', { birth: { year: 2000 } }),
+        person('k2', { birth: { year: 2005 } }),
+        person('k3', { birth: { year: 2002 } }),
+        person('k4', { birth: { year: 2010 } }),
+      ],
+      [
+        spouse('a', 's1'),
+        spouse('a', 's2'),
+        parent('a', 'k1'),
+        parent('s1', 'k1'),
+        parent('a', 'k2'),
+        parent('s2', 'k2'),
+        parent('a', 'k3'),
+        parent('s2', 'k3'),
+        parent('a', 'k4'),
+      ],
+    );
+
+  it('groups children under the spouse who is their parent', () => {
+    const unit = buildForest(multi())[0];
+    expect(unit.children.map((c) => [c.person.id, c.fromId])).toEqual([
+      ['k1', 's1'],
+      ['k3', 's2'],
+      ['k2', 's2'],
+      ['k4', 'a'],
+    ]);
+  });
+
+  it('puts each spouse in a box below and runs child lines from that spouse', () => {
+    const layout = layoutForest(buildForest(multi()));
+    const card = (id: string) => layout.cards.find((c) => c.id === id)!;
+    expect(layout.cards).toHaveLength(7);
+    for (const s of ['s1', 's2']) {
+      expect(card(s).isSpouse).toBe(true);
+      expect(card(s).y).toBeGreaterThan(card('a').y);
+      expect(card(s).y).toBeLessThan(card('k1').y);
+    }
+    // Different spouses never share a column, and their children sit under them in order.
+    expect(card('s1').x + card('s1').w).toBeLessThanOrEqual(card('s2').x);
+    expect(card('k1').x).toBeLessThan(card('k3').x);
+    expect(card('k2').x).toBeLessThan(card('k4').x);
+
+    // The line to k1 starts at the bottom of s1's box, not the person's.
+    const s1 = card('s1');
+    const k1Line = layout.childLines.find((l) => l.points.endsWith(`${card('k1').x + card('k1').w / 2},${card('k1').y}`))!;
+    expect(k1Line.points.startsWith(`${s1.x + s1.w / 2},${s1.y + CARD_H} `)).toBe(true);
+    expect(layout.spouseLines).toHaveLength(2);
+    expect(layout.childLines).toHaveLength(4);
   });
 });
 

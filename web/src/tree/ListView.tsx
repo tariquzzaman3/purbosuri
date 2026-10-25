@@ -4,45 +4,61 @@ import { useI18n } from '../i18n';
 import { buildForest, type Graph, type UnitNode } from '../data/graph';
 import { formatDate, lifeSpan, num, personName } from '../data/format';
 import { relationshipBadges } from '../data/labels';
-import type { Person } from '../data/types';
 import { TreeScreen } from './TreeScreen';
 import { useTree } from './TreeContext';
 
-/** Unusual links (adoptive, step, foster, disputed) between this unit and a child. */
-function childBadges(graph: Graph, unit: UnitNode, child: Person) {
-  const members = new Set([unit.person.id, ...unit.spouses.map((s) => s.id)]);
-  const rels = (graph.parentRels.get(child.id) ?? []).filter((r) => members.has(r.personA));
+/** Unusual links (adoptive, step, foster, disputed) between a child and the parent(s) it hangs from. */
+function childBadges(graph: Graph, unit: UnitNode, child: UnitNode) {
+  const members = new Set([unit.person.id, child.fromId ?? unit.person.id]);
+  const rels = (graph.parentRels.get(child.person.id) ?? []).filter((r) => members.has(r.personA));
   const keys = new Set(rels.flatMap((r) => relationshipBadges(r.kind, r.status)));
   return [...keys];
 }
 
 interface RowProps {
   node: UnitNode;
-  depth: number;
   badges: ReturnType<typeof childBadges>;
   graph: Graph;
   collapsed: Set<string>;
   toggle: (id: string) => void;
 }
 
-function Row({ node, depth, badges, graph, collapsed, toggle }: RowProps) {
+function Row({ node, badges, graph, collapsed, toggle }: RowProps) {
   const { t, lang } = useI18n();
   const unknown = t('unknownName');
   const approx = t('fApprox');
-  const isCollapsed = collapsed.has(node.person.id);
-  const hasKids = node.children.length > 0;
+  const id = node.person.id;
+  const isCollapsed = collapsed.has(id);
+  const hasBelow = node.children.length > 0 || node.spouses.length > 0;
   const span = lifeSpan(node.person, lang, approx);
+
+  const kidsOf = (ownerId: string) => node.children.filter((c) => (c.fromId ?? id) === ownerId);
+  const renderKids = (kids: UnitNode[]) =>
+    kids.length > 0 && (
+      <ul className="list-children">
+        {kids.map((child) => (
+          <Row
+            key={child.person.id}
+            node={child}
+            badges={childBadges(graph, node, child)}
+            graph={graph}
+            collapsed={collapsed}
+            toggle={toggle}
+          />
+        ))}
+      </ul>
+    );
 
   return (
     <li>
       <div className={`list-row gen-${node.gen % 6}`}>
-        {hasKids ? (
+        {hasBelow ? (
           <button
             type="button"
             className="toggle"
             aria-expanded={!isCollapsed}
             aria-label={`${isCollapsed ? t('expand') : t('collapse')}: ${personName(node.person, lang, unknown)}`}
-            onClick={() => toggle(node.person.id)}
+            onClick={() => toggle(id)}
           >
             {isCollapsed ? '▸' : '▾'}
           </button>
@@ -51,7 +67,7 @@ function Row({ node, depth, badges, graph, collapsed, toggle }: RowProps) {
         )}
         <div className="row-body">
           <div className="row-main">
-            <Link to={`/home/person/${node.person.id}`} className="person-link">
+            <Link to={`/home/person/${id}`} className="person-link">
               {personName(node.person, lang, unknown)}
             </Link>
             {span && <span className="muted small"> {span}</span>}
@@ -61,35 +77,55 @@ function Row({ node, depth, badges, graph, collapsed, toggle }: RowProps) {
               </span>
             ))}
           </div>
-          {node.spouses.map((s) => (
-            <div key={s.id} className="row-spouse small">
-              <span className="muted">{t('spouseWord')}: </span>
-              <Link to={`/home/person/${s.id}`} className="person-link">
-                {personName(s, lang, unknown)}
-              </Link>
-              {lifeSpan(s, lang, approx) && <span className="muted"> {lifeSpan(s, lang, approx)}</span>}
-            </div>
-          ))}
           <div className="gen-tag small">
             {t('genLabel')} {num(node.gen + 1, lang)}
-            {hasKids && isCollapsed && ` · ${num(node.children.length, lang)}`}
+            {hasBelow && isCollapsed && ` · ${num(node.children.length, lang)}`}
           </div>
         </div>
       </div>
-      {hasKids && !isCollapsed && (
-        <ul className="list-children">
-          {node.children.map((child) => (
-            <Row
-              key={child.person.id}
-              node={child}
-              depth={depth + 1}
-              badges={childBadges(graph, node, child.person)}
-              graph={graph}
-              collapsed={collapsed}
-              toggle={toggle}
-            />
-          ))}
-        </ul>
+
+      {hasBelow && !isCollapsed && (
+        <>
+          {/* Each spouse follows the person, half a step in, with their own children below. */}
+          {node.spouses.map((s) => {
+            const kids = kidsOf(s.id);
+            const sCollapsed = collapsed.has(s.id);
+            const sSpan = lifeSpan(s, lang, approx);
+            return (
+              <div key={s.id} className="spouse-block">
+                <div className={`list-row spouse-row gen-${node.gen % 6}`}>
+                  {kids.length > 0 ? (
+                    <button
+                      type="button"
+                      className="toggle"
+                      aria-expanded={!sCollapsed}
+                      aria-label={`${sCollapsed ? t('expand') : t('collapse')}: ${personName(s, lang, unknown)}`}
+                      onClick={() => toggle(s.id)}
+                    >
+                      {sCollapsed ? '▸' : '▾'}
+                    </button>
+                  ) : (
+                    <span className="toggle-space" aria-hidden="true" />
+                  )}
+                  <div className="row-body">
+                    <div className="row-main">
+                      <span className="muted small">⚭ {t('spouseWord')}:</span>
+                      <Link to={`/home/person/${s.id}`} className="person-link">
+                        {personName(s, lang, unknown)}
+                      </Link>
+                      {sSpan && <span className="muted small"> {sSpan}</span>}
+                      {sCollapsed && kids.length > 0 && (
+                        <span className="muted small"> · {num(kids.length, lang)}</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                {!sCollapsed && renderKids(kids)}
+              </div>
+            );
+          })}
+          {renderKids(kidsOf(id))}
+        </>
       )}
     </li>
   );
@@ -153,7 +189,6 @@ function ListContent() {
             <Row
               key={node.person.id}
               node={node}
-              depth={0}
               badges={[]}
               graph={graph}
               collapsed={collapsed}

@@ -168,6 +168,11 @@ export interface UnitNode {
   spouses: Person[];
   gen: number;
   children: UnitNode[];
+  /**
+   * Which member of the parent unit this unit hangs from: the parent person, or one of
+   * their spouses. Keeps the children of different spouses apart.
+   */
+  fromId?: string;
 }
 
 const nameKey = (p: Person) => p.nameBn ?? p.nameEn ?? '';
@@ -227,12 +232,24 @@ export function buildForest(g: Graph): UnitNode[] {
 
     const kids = [...kidIds]
       .map((id) => g.people.get(id))
-      .filter((c): c is Person => c !== undefined && !placed.has(c.id))
-      .sort(byBirthThenName);
+      .filter((c): c is Person => c !== undefined && !placed.has(c.id));
 
+    // A child belongs to a spouse when that spouse is a recorded parent, otherwise to the
+    // person. Each spouse's children stay together (eldest first), spouses in order, and
+    // the person's own children (other parent not recorded) come last.
+    const memberFor = (c: Person): string => {
+      const parents = new Set((g.parentRels.get(c.id) ?? []).map((r) => r.personA));
+      return spouses.find((s) => parents.has(s.id))?.id ?? p.id;
+    };
     const children: UnitNode[] = [];
-    for (const kid of kids) {
-      if (!placed.has(kid.id)) children.push(makeUnit(kid));
+    for (const memberId of [...spouses.map((s) => s.id), p.id]) {
+      const group = kids.filter((c) => memberFor(c) === memberId).sort(byBirthThenName);
+      for (const kid of group) {
+        if (placed.has(kid.id)) continue;
+        const unit = makeUnit(kid);
+        unit.fromId = memberId;
+        children.push(unit);
+      }
     }
 
     return { person: p, spouses, gen: gens.get(p.id) ?? 0, children };
