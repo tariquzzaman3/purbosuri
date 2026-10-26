@@ -102,17 +102,51 @@ service cloud.firestore {
     // Firestore cannot search trees by membership, so each person keeps their
     // own list. They can only add a tree to it if they really are a member.
 
+    // One person can belong to at most five trees, created or joined. Each tree in the list
+    // must take one of five numbered slots, and a slot can only be freed together with its
+    // list entry, so the limit holds even without a server program to count.
+
+    function slotDoc(uid, n) {
+      return /databases/$(database)/documents/users/$(uid)/slots/$(string(n));
+    }
+
+    function validSlot(n) {
+      return n is int && n >= 1 && n <= 5;
+    }
+
     match /users/{uid}/trees/{treeId} {
       allow read: if isSelf(uid);
       allow create: if isSelf(uid)
-        && request.resource.data.keys().hasOnly(['name', 'addedAt'])
-        && request.resource.data.keys().hasAll(['name', 'addedAt'])
+        && request.resource.data.keys().hasOnly(['name', 'addedAt', 'slot'])
+        && request.resource.data.keys().hasAll(['name', 'addedAt', 'slot'])
         && request.resource.data.name is string
         && request.resource.data.name.size() > 0
         && request.resource.data.name.size() <= 120
         && request.resource.data.addedAt == request.time
+        && validSlot(request.resource.data.slot)
+        && existsAfter(slotDoc(uid, request.resource.data.slot))
+        && getAfter(slotDoc(uid, request.resource.data.slot)).data.treeId == treeId
         && existsAfter(memberDoc(treeId, request.auth.uid));
+      // Entries made before slots existed get a slot once, and nothing else changes.
+      allow update: if isSelf(uid)
+        && !('slot' in resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['slot'])
+        && validSlot(request.resource.data.slot)
+        && getAfter(slotDoc(uid, request.resource.data.slot)).data.treeId == treeId;
       allow delete: if isSelf(uid);
+    }
+
+    match /users/{uid}/slots/{slot} {
+      allow read: if isSelf(uid);
+      allow create: if isSelf(uid)
+        && slot in ['1', '2', '3', '4', '5']
+        && request.resource.data.keys().hasOnly(['treeId'])
+        && request.resource.data.treeId is string
+        && getAfter(/databases/$(database)/documents/users/$(uid)/trees/$(request.resource.data.treeId)).data.slot == int(slot);
+      allow update: if false;
+      // A slot is freed only when the tree it held leaves the list in the same step.
+      allow delete: if isSelf(uid)
+        && !existsAfter(/databases/$(database)/documents/users/$(uid)/trees/$(resource.data.treeId));
     }
 
     // ---------- trees ----------
@@ -134,12 +168,19 @@ service cloud.firestore {
         && validTree(request.resource.data)
         && request.resource.data.ownerUid == request.auth.uid
         && request.resource.data.createdAt == request.time
-        && getAfter(memberDoc(treeId, request.auth.uid)).data.role == 'owner';
+        && getAfter(memberDoc(treeId, request.auth.uid)).data.role == 'owner'
+        && existsAfter(/databases/$(database)/documents/users/$(request.auth.uid)/trees/$(treeId));
 
+      // Only the manager changes the tree. The manager can also hand it to another member:
+      // the new manager's role and the old one's step-down must happen in the same batch.
       allow update: if isOwner(treeId)
         && validTree(request.resource.data)
-        && request.resource.data.ownerUid == resource.data.ownerUid
-        && request.resource.data.createdAt == resource.data.createdAt;
+        && request.resource.data.createdAt == resource.data.createdAt
+        && (request.resource.data.ownerUid == resource.data.ownerUid
+            || (request.resource.data.ownerUid != request.auth.uid
+                && resource.data.ownerUid == request.auth.uid
+                && getAfter(memberDoc(treeId, request.resource.data.ownerUid)).data.role == 'owner'
+                && getAfter(memberDoc(treeId, request.auth.uid)).data.role in ['reviewer', 'contributor']));
 
       // Deleting a tree document does not delete its subcollections.
       // A full tree deletion is done by the client, collection by collection.
@@ -156,7 +197,9 @@ service cloud.firestore {
       }
 
       match /members/{memberUid} {
-        allow read: if isMember(treeId);
+        // Nobody sees other people's roles. Each person reads only their own record;
+        // the manager and admins see everyone, to manage them.
+        allow read: if isSelf(memberUid) || isReviewer(treeId);
 
         // The creator of a tree becomes its owner (same batch as the tree).
         allow create: if memberUid == request.auth.uid
@@ -172,14 +215,42 @@ service cloud.firestore {
           && request.resource.data.role != 'owner'
           && request.resource.data.joinedAt == request.time;
 
-        // The owner can change someone's role (never to owner, never their own).
-        allow update: if isOwner(treeId)
+        // Manager and admins can make someone else an admin or a participant. The manager's
+        // own role is never touched this way.
+        allow update: if isReviewer(treeId)
           && memberUid != request.auth.uid
+          && resource.data.role != 'owner'
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role'])
           && request.resource.data.role in ['reviewer', 'contributor', 'viewer'];
 
-        // The owner can remove others. Anyone except the owner can leave.
-        allow delete: if (isOwner(treeId) && memberUid != request.auth.uid)
+        // An admin can step down to participant.
+        allow update: if isSelf(memberUid)
+          && isMember(treeId)
+          && myRole(treeId) == 'reviewer'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role'])
+          && request.resource.data.role in ['contributor', 'viewer'];
+
+        // Handing the tree over: the manager makes another member the manager, and steps
+        // down, in one batch together with the change of the tree's ownerUid.
+        allow update: if isOwner(treeId)
+          && memberUid != request.auth.uid
+          && resource.data.role in ['reviewer', 'contributor']
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role'])
+          && request.resource.data.role == 'owner'
+          && getAfter(/databases/$(database)/documents/trees/$(treeId)).data.ownerUid == memberUid
+          && getAfter(memberDoc(treeId, request.auth.uid)).data.role in ['reviewer', 'contributor'];
+
+        allow update: if isOwner(treeId)
+          && memberUid == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role'])
+          && request.resource.data.role in ['reviewer', 'contributor']
+          && getAfter(/databases/$(database)/documents/trees/$(treeId)).data.ownerUid != request.auth.uid
+          && getAfter(memberDoc(treeId,
+               getAfter(/databases/$(database)/documents/trees/$(treeId)).data.ownerUid)).data.role == 'owner';
+
+        // Manager and admins can remove others (never the manager). Anyone except the
+        // manager can leave.
+        allow delete: if (isReviewer(treeId) && memberUid != request.auth.uid && resource.data.role != 'owner')
           || (isSelf(memberUid) && isMember(treeId) && myRole(treeId) != 'owner');
       }
 

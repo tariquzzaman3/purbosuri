@@ -1,13 +1,13 @@
 import { useState, type FormEvent } from 'react';
 import { useAuth } from '../auth';
 import { useI18n } from '../i18n';
-import { MAX_OWNED_TREES, createTree } from '../data/mutations';
+import { createTree } from '../data/mutations';
 import { useTree } from './TreeContext';
 
 export function CreateTree({ onCreated }: { onCreated?: () => void }) {
   const { t } = useI18n();
   const { user } = useAuth();
-  const { chooseTree, trees, ownedCount } = useTree();
+  const { chooseTree, trees, nextSlot } = useTree();
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -15,7 +15,7 @@ export function CreateTree({ onCreated }: { onCreated?: () => void }) {
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!user) return;
-    if (ownedCount >= MAX_OWNED_TREES) {
+    if (nextSlot === null) {
       setError(t('errTreeLimit'));
       return;
     }
@@ -26,7 +26,7 @@ export function CreateTree({ onCreated }: { onCreated?: () => void }) {
     setBusy(true);
     setError(null);
     try {
-      const id = await createTree(user.uid, user.displayName ?? '', name);
+      const id = await createTree(user.uid, user.displayName ?? '', name, nextSlot);
       chooseTree(id);
       onCreated?.();
     } catch {

@@ -25,6 +25,13 @@ let env: RulesTestEnvironment;
 const db = (uid: string): Db => env.authenticatedContext(uid).firestore();
 const anon = (): Db => env.unauthenticatedContext().firestore();
 
+/** Puts a tree in a person's list: the list entry and the slot it takes, in one batch. */
+function listTree(d: Db, uid: string, treeId: string, slot: number, batch = writeBatch(d)) {
+  batch.set(doc(d, `users/${uid}/slots/${slot}`), { treeId });
+  batch.set(doc(d, `users/${uid}/trees/${treeId}`), { name: 'Tree', addedAt: serverTimestamp(), slot });
+  return batch;
+}
+
 // Two independent trees.
 //   treeA: alice=owner, rita=reviewer, carl=contributor, vera=viewer
 //   treeB: bob=owner
@@ -144,7 +151,7 @@ describe('reading: private by default, no cross-tree leakage', () => {
 });
 
 describe('creating trees and membership', () => {
-  it('a user can create a tree together with their owner membership', async () => {
+  it('a user can create a tree together with their owner membership and list entry', async () => {
     const d = db('dina');
     const batch = writeBatch(d);
     batch.set(doc(d, 'trees/treeD'), {
@@ -157,7 +164,20 @@ describe('creating trees and membership', () => {
       displayName: 'Dina',
       joinedAt: serverTimestamp(),
     });
+    listTree(d, 'dina', 'treeD', 1, batch);
     await assertSucceeds(batch.commit());
+  });
+
+  it('a tree that is not in its creator list is rejected (no hidden trees)', async () => {
+    const d = db('dina');
+    const batch = writeBatch(d);
+    batch.set(doc(d, 'trees/treeD'), { name: 'Hidden', ownerUid: 'dina', createdAt: serverTimestamp() });
+    batch.set(doc(d, 'trees/treeD/members/dina'), {
+      role: 'owner',
+      displayName: 'Dina',
+      joinedAt: serverTimestamp(),
+    });
+    await assertFails(batch.commit());
   });
 
   it('a tree without its owner membership is rejected', async () => {
@@ -221,22 +241,20 @@ describe('creating trees and membership', () => {
   });
 });
 
-describe('my list of trees', () => {
-  const entry = () => ({ name: 'Tree A', addedAt: serverTimestamp() });
-
+describe('my list of trees and the five-tree limit', () => {
   it('a member can list their own tree', async () => {
-    await assertSucceeds(setDoc(doc(db('alice'), 'users/alice/trees/treeA'), entry()));
+    await assertSucceeds(listTree(db('alice'), 'alice', 'treeA', 1).commit());
     await assertSucceeds(getDoc(doc(db('alice'), 'users/alice/trees/treeA')));
   });
 
   it('a user cannot list a tree they do not belong to', async () => {
-    await assertFails(setDoc(doc(db('bob'), 'users/bob/trees/treeA'), entry()));
-    await assertFails(setDoc(doc(db('dina'), 'users/dina/trees/treeA'), entry()));
+    await assertFails(listTree(db('bob'), 'bob', 'treeA', 1).commit());
+    await assertFails(listTree(db('dina'), 'dina', 'treeA', 1).commit());
   });
 
   it("a user cannot write into someone else's list", async () => {
-    await assertFails(setDoc(doc(db('bob'), 'users/alice/trees/treeB'), entry()));
-    await assertFails(setDoc(doc(db('alice'), 'users/carl/trees/treeA'), entry()));
+    await assertFails(listTree(db('bob'), 'alice', 'treeB', 1).commit());
+    await assertFails(listTree(db('alice'), 'carl', 'treeA', 1).commit());
   });
 
   it('nobody can read another user list', async () => {
@@ -244,26 +262,132 @@ describe('my list of trees', () => {
       await setDoc(doc(ctx.firestore(), 'users/alice/trees/treeA'), {
         name: 'Tree A',
         addedAt: Timestamp.now(),
+        slot: 1,
       });
     });
     await assertFails(getDoc(doc(db('bob'), 'users/alice/trees/treeA')));
   });
 
-  it('a new tree can be created and listed in one batch', async () => {
+  it('a list entry needs a matching slot', async () => {
+    const d = db('alice');
+    await assertFails(
+      setDoc(doc(d, 'users/alice/trees/treeA'), { name: 'Tree A', addedAt: serverTimestamp(), slot: 1 }),
+    );
+    const batch = writeBatch(d);
+    batch.set(doc(d, 'users/alice/slots/2'), { treeId: 'treeA' });
+    batch.set(doc(d, 'users/alice/trees/treeA'), { name: 'Tree A', addedAt: serverTimestamp(), slot: 1 });
+    await assertFails(batch.commit()); // slot 1 named, slot 2 filled
+  });
+
+  const fillFive = async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const d = ctx.firestore();
+      for (let i = 1; i <= 5; i++) {
+        await setDoc(doc(d, `users/dina/slots/${i}`), { treeId: `old${i}` });
+        await setDoc(doc(d, `users/dina/trees/old${i}`), { name: `Old ${i}`, addedAt: Timestamp.now(), slot: i });
+      }
+    });
+  };
+
+  const createD = (slot: number) => {
     const d = db('dina');
     const batch = writeBatch(d);
-    batch.set(doc(d, 'trees/treeD'), {
-      name: 'Dina family',
-      ownerUid: 'dina',
-      createdAt: serverTimestamp(),
-    });
+    batch.set(doc(d, 'trees/treeD'), { name: 'Sixth', ownerUid: 'dina', createdAt: serverTimestamp() });
     batch.set(doc(d, 'trees/treeD/members/dina'), {
       role: 'owner',
       displayName: 'Dina',
       joinedAt: serverTimestamp(),
     });
-    batch.set(doc(d, 'users/dina/trees/treeD'), { name: 'Dina family', addedAt: serverTimestamp() });
+    listTree(d, 'dina', 'treeD', slot, batch);
+    return batch.commit();
+  };
+
+  it('a sixth tree is refused, whichever slot is named', async () => {
+    await fillFive();
+    for (const slot of [1, 3, 5, 6, 0]) await assertFails(createD(slot));
+  });
+
+  it('a slot cannot be freed without removing its tree from the list', async () => {
+    await fillFive();
+    const d = db('dina');
+    await assertFails(deleteDoc(doc(d, 'users/dina/slots/2')));
+    const batch = writeBatch(d);
+    batch.delete(doc(d, 'users/dina/slots/2'));
+    batch.delete(doc(d, 'users/dina/trees/old2'));
     await assertSucceeds(batch.commit());
+    await assertSucceeds(createD(2));
+  });
+
+  it('an old list entry without a slot can be given one', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users/alice/trees/treeA'), { name: 'Tree A', addedAt: Timestamp.now() });
+    });
+    const d = db('alice');
+    const batch = writeBatch(d);
+    batch.set(doc(d, 'users/alice/slots/4'), { treeId: 'treeA' });
+    batch.update(doc(d, 'users/alice/trees/treeA'), { slot: 4 });
+    await assertSucceeds(batch.commit());
+  });
+});
+
+describe('roles: who sees whom, and who can change what', () => {
+  it('a participant sees only their own membership, an admin sees everyone', async () => {
+    await assertSucceeds(getDoc(doc(db('carl'), 'trees/treeA/members/carl')));
+    await assertFails(getDoc(doc(db('carl'), 'trees/treeA/members/rita')));
+    await assertFails(getDoc(doc(db('vera'), 'trees/treeA/members/alice')));
+    await assertSucceeds(getDoc(doc(db('rita'), 'trees/treeA/members/carl')));
+    await assertSucceeds(getDoc(doc(db('alice'), 'trees/treeA/members/rita')));
+  });
+
+  it('an admin can make a participant an admin, and back', async () => {
+    const ref = doc(db('rita'), 'trees/treeA/members/carl');
+    await assertSucceeds(updateDoc(ref, { role: 'reviewer' }));
+    await assertSucceeds(updateDoc(doc(db('rita'), 'trees/treeA/members/carl'), { role: 'contributor' }));
+  });
+
+  it('an admin cannot touch the manager, or make someone manager', async () => {
+    await assertFails(updateDoc(doc(db('rita'), 'trees/treeA/members/alice'), { role: 'contributor' }));
+    await assertFails(updateDoc(doc(db('rita'), 'trees/treeA/members/carl'), { role: 'owner' }));
+    await assertFails(deleteDoc(doc(db('rita'), 'trees/treeA/members/alice')));
+  });
+
+  it('a participant cannot change anyone, not even themselves', async () => {
+    await assertFails(updateDoc(doc(db('carl'), 'trees/treeA/members/vera'), { role: 'contributor' }));
+    await assertFails(updateDoc(doc(db('carl'), 'trees/treeA/members/carl'), { role: 'reviewer' }));
+  });
+
+  it('an admin can step down to participant but not up', async () => {
+    await assertSucceeds(updateDoc(doc(db('rita'), 'trees/treeA/members/rita'), { role: 'contributor' }));
+    await assertFails(updateDoc(doc(db('rita'), 'trees/treeA/members/rita'), { role: 'owner' }));
+  });
+
+  it('an admin can remove a participant', async () => {
+    await assertSucceeds(deleteDoc(doc(db('rita'), 'trees/treeA/members/carl')));
+  });
+
+  it('the manager can hand the tree to another member and step down, only in one step', async () => {
+    const d = db('alice');
+    // Making someone manager without stepping down is refused.
+    await assertFails(updateDoc(doc(d, 'trees/treeA/members/rita'), { role: 'owner' }));
+
+    const batch = writeBatch(d);
+    batch.update(doc(d, 'trees/treeA/members/rita'), { role: 'owner' });
+    batch.update(doc(d, 'trees/treeA/members/alice'), { role: 'reviewer' });
+    batch.update(doc(d, 'trees/treeA'), { ownerUid: 'rita' });
+    await assertSucceeds(batch.commit());
+
+    // Rita now manages: she can rename the tree, and Alice is an admin.
+    await assertSucceeds(updateDoc(doc(db('rita'), 'trees/treeA'), { name: 'Renamed' }));
+    await assertFails(updateDoc(doc(db('alice'), 'trees/treeA'), { name: 'Not allowed' }));
+  });
+
+  it('the manager cannot step down without handing over', async () => {
+    const d = db('alice');
+    await assertFails(updateDoc(doc(d, 'trees/treeA/members/alice'), { role: 'reviewer' }));
+    const batch = writeBatch(d);
+    batch.update(doc(d, 'trees/treeA/members/alice'), { role: 'reviewer' });
+    batch.update(doc(d, 'trees/treeA'), { ownerUid: 'alice' });
+    await assertFails(batch.commit());
   });
 });
 

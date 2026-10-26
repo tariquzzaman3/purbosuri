@@ -9,6 +9,8 @@ import { PersonPage } from '../tree/PersonPage';
 import { AddPersonPage, EditPersonPage } from '../tree/PersonForm';
 import { CreateTree } from '../tree/CreateTree';
 import { TreesPage } from '../tree/TreesPage';
+import { MembersPage } from '../tree/MembersPage';
+import { InstallPage } from './InstallPage';
 import { SettingsPage } from './Settings';
 import { AboutPage, PrivacyPage } from './InfoPages';
 
@@ -60,6 +62,8 @@ export function Home() {
             <Route path="add" element={<AddPersonPage />} />
             <Route path="new-tree" element={<NewTreePage />} />
             <Route path="trees" element={<TreesPage />} />
+            <Route path="members" element={<MembersPage />} />
+            <Route path="install" element={<InstallPage />} />
             <Route path="settings" element={<SettingsPage />} />
             <Route path="about" element={<AboutPage />} />
             <Route path="privacy" element={<PrivacyPage />} />

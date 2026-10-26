@@ -9,7 +9,7 @@ import {
 } from 'react';
 
 import { treeBn, treeEn } from './i18n-tree';
-import { menuBn, menuEn } from './i18n-menu';
+import { memberBn, memberEn, menuBn, menuEn } from './i18n-menu';
 
 export type Lang = 'bn' | 'en';
 
@@ -91,6 +91,7 @@ const bn = {
   notBuilt: 'এই অংশটি এখনো তৈরি হয়নি।',
   ...treeBn,
   ...menuBn,
+  ...memberBn,
 };
 
 const en: typeof bn = {
@@ -170,6 +171,7 @@ const en: typeof bn = {
   notBuilt: 'This part is not built yet.',
   ...treeEn,
   ...menuEn,
+  ...memberEn,
 };
 
 export type TKey = keyof typeof bn;

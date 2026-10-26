@@ -1162,3 +1162,45 @@ fieldset.field legend {
     background: #f4efe4;
   }
 }
+
+/* ---------- Members and install ---------- */
+.member-item {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+}
+
+.inline-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.inline-select select {
+  min-height: 44px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1.5px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+
+.role-hints {
+  margin: 0 0 12px;
+  padding-left: 1.2rem;
+}
+
+.install-steps {
+  margin: 0;
+  padding-left: 1.4rem;
+}
+
+.install-steps li {
+  margin-bottom: 6px;
+}
+
+.install .card {
+  margin-top: 14px;
+}
