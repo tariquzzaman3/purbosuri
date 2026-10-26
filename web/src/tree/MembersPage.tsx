@@ -4,7 +4,7 @@ import { useAuth } from '../auth';
 import { db } from '../firebase';
 import { useI18n } from '../i18n';
 import { ROLE_KEYS } from '../data/labels';
-import { removeMember, setMemberRole, stepDown, transferManager } from '../data/mutations';
+import { removeMember, saveTreeSettings, setMemberRole, stepDown, transferManager } from '../data/mutations';
 import type { Role } from '../data/types';
 import { useTree } from './TreeContext';
 
@@ -130,7 +130,7 @@ function MemberRow({ member, treeId }: { member: Member; treeId: string }) {
 /** For the manager and admins: everyone in this tree, and their roles. */
 export function MembersPage() {
   const { t } = useI18n();
-  const { current, canEdit, ready } = useTree();
+  const { current, canEdit, ready, role, settings } = useTree();
   const [members, setMembers] = useState<Member[] | null>(null);
   const treeId = current?.id;
 
@@ -164,6 +164,27 @@ export function MembersPage() {
       <h2>{t('membersTitle')}</h2>
       <p className="muted small">{current?.name}</p>
       <p className="muted small">{t('membersNote')}</p>
+      <section className="card">
+        <h3>{t('setSwitches')}</h3>
+        <label className="radio">
+          <input
+            type="checkbox"
+            checked={settings.adminsCanInvite !== false}
+            disabled={role !== 'owner'}
+            onChange={(e) => void saveTreeSettings(treeId, { ...settings, adminsCanInvite: e.target.checked }).catch(() => undefined)}
+          />{' '}
+          {t('setAdminsInvite')}
+        </label>
+        <label className="radio">
+          <input
+            type="checkbox"
+            checked={settings.participantsCanInvite === true}
+            onChange={(e) => void saveTreeSettings(treeId, { ...settings, participantsCanInvite: e.target.checked }).catch(() => undefined)}
+          />{' '}
+          {t('setPartsInvite')}
+        </label>
+        <p className="muted small">{role === 'owner' ? t('setSwitchNoteManager') : t('setSwitchNoteAdmin')}</p>
+      </section>
       <ul className="role-hints muted small">
         <li>{t('roleHintManager')}</li>
         <li>{t('roleHintAdmin')}</li>

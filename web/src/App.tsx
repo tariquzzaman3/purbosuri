@@ -1,5 +1,5 @@
 import { useCallback, useState, type ReactNode } from 'react';
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useParams } from 'react-router-dom';
 import { I18nProvider, useI18n } from './i18n';
 import { AuthProvider, useAuth } from './auth';
 import { Splash } from './screens/Splash';
@@ -25,11 +25,36 @@ function RequireAuth({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
+// Where to go after signing in, when someone opened an invitation link before having an account.
+const NEXT_KEY = 'purbosuri.next';
+
+function takeNext(): string | null {
+  try {
+    const next = localStorage.getItem(NEXT_KEY);
+    localStorage.removeItem(NEXT_KEY);
+    return next && next.startsWith('/home/join/') ? next : null;
+  } catch {
+    return null;
+  }
+}
+
 function PublicOnly({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
   if (loading) return <Loading />;
-  if (user) return <Navigate to="/home" replace />;
+  if (user) return <Navigate to={takeNext() ?? '/home'} replace />;
   return <>{children}</>;
+}
+
+/** An invitation link: remember it, so it still works after signing up or signing in. */
+function JoinLink() {
+  const { treeId = '', code = '' } = useParams();
+  const target = `/home/join/${encodeURIComponent(treeId)}/${encodeURIComponent(code)}`;
+  try {
+    localStorage.setItem(NEXT_KEY, target);
+  } catch {
+    // Without storage the person just opens the link again after signing in.
+  }
+  return <Navigate to={target} replace />;
 }
 
 function splashAlreadyShown(): boolean {
@@ -72,6 +97,7 @@ function Shell() {
           </RequireAuth>
         }
       />
+      <Route path="/join/:treeId/:code" element={<JoinLink />} />
       <Route path="*" element={<Navigate to="/home" replace />} />
     </Routes>
   );
