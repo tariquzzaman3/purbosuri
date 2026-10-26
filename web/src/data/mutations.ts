@@ -1,7 +1,9 @@
 import {
+  Timestamp,
   collection,
   deleteField,
   getDocs,
+  setDoc,
   doc,
   serverTimestamp,
   updateDoc,
@@ -10,7 +12,7 @@ import {
   type Firestore,
 } from 'firebase/firestore';
 import { db } from '../firebase';
-import type { PersonFields, RelKind, RelStatus, RelType, Relationship } from './types';
+import type { Contact, JoinRequest, PersonFields, RelKind, RelStatus, RelType, Relationship, TreeSettings } from './types';
 
 function database(): Firestore {
   if (!db) throw new Error('not-configured');
@@ -239,4 +241,179 @@ export async function removeRelationship(treeId: string, relId: string): Promise
   const batch = writeBatch(d);
   batch.delete(doc(d, 'trees', treeId, 'relationships', relId));
   await batch.commit();
+}
+
+// ---------- invitations and joining ----------
+
+const INVITE_DAYS = 7;
+
+/** Makes an invitation and returns its code. The link is built from the tree id and this code. */
+export async function createInvite(
+  treeId: string,
+  uid: string,
+  treeName: string,
+  role: 'reviewer' | 'contributor',
+): Promise<string> {
+  const d = database();
+  const ref = doc(collection(d, 'trees', treeId, 'invites'));
+  await setDoc(ref, {
+    role,
+    treeName,
+    createdBy: uid,
+    createdAt: serverTimestamp(),
+    expiresAt: Timestamp.fromMillis(Date.now() + INVITE_DAYS * 24 * 3600 * 1000),
+  });
+  return ref.id;
+}
+
+export async function revokeInvite(treeId: string, code: string): Promise<void> {
+  const d = database();
+  const batch = writeBatch(d);
+  batch.delete(doc(d, 'trees', treeId, 'invites', code));
+  await batch.commit();
+}
+
+export interface JoinForm {
+  displayName: string;
+  fatherName?: string;
+  motherName?: string;
+  contactOf: 'self' | 'father' | 'mother' | 'other';
+  contact: Contact;
+}
+
+/** A newcomer asks to join: the request, the use of the invitation and a waiting note, in one batch. */
+export async function submitJoin(
+  treeId: string,
+  uid: string,
+  code: string,
+  invite: { role: 'reviewer' | 'contributor'; treeName: string },
+  form: JoinForm,
+): Promise<void> {
+  const d = database();
+  const batch = writeBatch(d);
+  batch.set(doc(d, 'trees', treeId, 'joinRequests', uid), {
+    ...clean({
+      displayName: form.displayName,
+      fatherName: form.fatherName,
+      motherName: form.motherName,
+      contactOf: form.contactOf,
+      contact: clean({ ...form.contact }),
+    }),
+    inviteCode: code,
+    role: invite.role,
+    status: 'pending',
+    createdAt: serverTimestamp(),
+  });
+  batch.update(doc(d, 'trees', treeId, 'invites', code), { usedBy: uid, usedAt: serverTimestamp() });
+  batch.set(doc(d, 'users', uid, 'pending', treeId), { treeName: invite.treeName, requestedAt: serverTimestamp() });
+  await batch.commit();
+}
+
+export type ApprovePlan =
+  | { kind: 'link'; personId: string }
+  | {
+      kind: 'new';
+      nameBn?: string;
+      nameEn?: string;
+      /** Who the new person is connected to. Required unless the tree is still empty. */
+      relation?: { existingId: string; as: 'parent' | 'child' | 'spouse' };
+    };
+
+/**
+ * An admin approves a join request: the newcomer is linked to a person already in the tree, or
+ * added as a new person connected to someone (so no outsider ends up floating in the tree), and
+ * becomes a member. Their contact details go where only admins can read them.
+ */
+export async function approveJoin(treeId: string, adminUid: string, req: JoinRequest, plan: ApprovePlan): Promise<string> {
+  const d = database();
+  const batch = writeBatch(d);
+  let personId: string;
+
+  if (plan.kind === 'link') {
+    personId = plan.personId;
+  } else {
+    const personRef = doc(collection(d, 'trees', treeId, 'people'));
+    personId = personRef.id;
+    batch.set(personRef, {
+      ...clean({ nameBn: plan.nameBn, nameEn: plan.nameEn }),
+      createdBy: adminUid,
+      createdAt: serverTimestamp(),
+    });
+    if (plan.relation) {
+      const relRef = doc(collection(d, 'trees', treeId, 'relationships'));
+      const { existingId, as } = plan.relation;
+      const rel: NewRelationship =
+        as === 'parent'
+          ? { type: 'parent', personA: personId, personB: existingId }
+          : as === 'child'
+            ? { type: 'parent', personA: existingId, personB: personId }
+            : { type: 'spouse', personA: existingId, personB: personId };
+      batch.set(relRef, relationshipData(adminUid, rel));
+    }
+  }
+
+  const contact = clean({
+    ...(req.contact ?? {}),
+    contactOf: req.contactOf,
+    fatherName: req.fatherName,
+    motherName: req.motherName,
+  });
+  if (Object.keys(contact).length > 0) {
+    batch.set(doc(d, 'trees', treeId, 'people', personId, 'private', 'contact'), contact, { merge: true });
+  }
+
+  batch.set(doc(d, 'trees', treeId, 'members', req.uid), {
+    role: req.role,
+    displayName: req.displayName.slice(0, 100),
+    joinedAt: serverTimestamp(),
+    personId,
+  });
+  batch.update(doc(d, 'trees', treeId, 'joinRequests', req.uid), {
+    status: 'approved',
+    reviewedBy: adminUid,
+    reviewedAt: serverTimestamp(),
+    personId,
+  });
+  await batch.commit();
+  return personId;
+}
+
+export async function rejectJoin(treeId: string, adminUid: string, uid: string): Promise<void> {
+  await updateDoc(doc(database(), 'trees', treeId, 'joinRequests', uid), {
+    status: 'rejected',
+    reviewedBy: adminUid,
+    reviewedAt: serverTimestamp(),
+  });
+}
+
+/** After approval: put the tree in the newcomer's own list and clear the waiting note. */
+export async function claimTree(uid: string, treeId: string, name: string, slot: number): Promise<void> {
+  const d = database();
+  const batch = writeBatch(d);
+  batch.set(doc(d, 'users', uid, 'slots', String(slot)), { treeId });
+  batch.set(doc(d, 'users', uid, 'trees', treeId), { name, addedAt: serverTimestamp(), slot });
+  batch.delete(doc(d, 'users', uid, 'pending', treeId));
+  await batch.commit();
+}
+
+/** Remove a waiting note, and the request itself when it was not approved. */
+export async function dismissPending(uid: string, treeId: string): Promise<void> {
+  const d = database();
+  const batch = writeBatch(d);
+  batch.delete(doc(d, 'users', uid, 'pending', treeId));
+  batch.delete(doc(d, 'trees', treeId, 'joinRequests', uid));
+  await batch.commit();
+}
+
+export async function saveTreeSettings(treeId: string, settings: TreeSettings): Promise<void> {
+  await updateDoc(doc(database(), 'trees', treeId), { settings });
+}
+
+/** A member shows (or, with an empty object, hides) their own contact details to everyone in the tree. */
+export async function savePublicContact(treeId: string, personId: string, contact: Contact): Promise<void> {
+  const cleaned = clean({ ...contact });
+  await updateDoc(doc(database(), 'trees', treeId, 'people', personId), {
+    publicContact: Object.keys(cleaned).length > 0 ? cleaned : deleteField(),
+    updatedAt: serverTimestamp(),
+  });
 }
