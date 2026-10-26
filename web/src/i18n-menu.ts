@@ -24,7 +24,8 @@ export const menuBn = {
   treeRename: 'নাম বদলান',
   treeDelete: 'মুছুন',
   treeSharedWithMe: 'অন্যের তৈরি',
-  treeOnlyAdmin: 'শুধু পরিচালক নাম বদলাতে বা মুছতে পারেন।',
+  spouseElsewhere: 'অন্য শাখায় আছেন',
+  treeOnlyAdmin: 'শুধু ব্যবস্থাপক নাম বদলাতে বা মুছতে পারেন।',
   treeDeleteTitle: 'বংশধারা মুছে ফেলবেন?',
   treeDeleteWarn:
     'এই বংশধারার সব ব্যক্তি ও সম্পর্ক স্থায়ীভাবে মুছে যাবে এবং ফেরানো যাবে না। নিশ্চিত করতে বংশধারার নামটি লিখুন।',
@@ -117,7 +118,8 @@ export const menuEn: typeof menuBn = {
   treeRename: 'Rename',
   treeDelete: 'Delete',
   treeSharedWithMe: 'Created by others',
-  treeOnlyAdmin: 'Only the admin can rename or delete.',
+  spouseElsewhere: 'also in another branch',
+  treeOnlyAdmin: 'Only the manager can rename or delete.',
   treeDeleteTitle: 'Delete this family tree?',
   treeDeleteWarn:
     'Every person and relationship in this tree will be deleted for good and cannot be brought back. Type the tree’s name to confirm.',

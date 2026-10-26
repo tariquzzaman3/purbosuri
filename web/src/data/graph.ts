@@ -166,6 +166,11 @@ export function generations(g: Graph): Map<string, number> {
 export interface UnitNode {
   person: Person;
   spouses: Person[];
+  /**
+   * Spouses who have their own parents in the tree (for example a cousin marriage). They are
+   * drawn in their own branch; here they only appear as a reference box beside this person.
+   */
+  refs: Person[];
   gen: number;
   children: UnitNode[];
   /**
@@ -227,8 +232,15 @@ export function buildForest(g: Graph): UnitNode[] {
     }
     spouses.sort(byBirthThenName);
 
+    // Spouses with parents of their own live in another branch; they get a reference box here.
+    const refs = spouseIds(g, p.id)
+      .map((sid) => g.people.get(sid))
+      .filter((s): s is Person => s !== undefined && s.id !== p.id && parentIds(g, s.id).length > 0)
+      .sort(byBirthThenName);
+    const partners = [...spouses, ...refs];
+
     const kidIds = new Set<string>();
-    for (const member of [p, ...spouses]) for (const c of childIds(g, member.id)) kidIds.add(c);
+    for (const member of [p, ...partners]) for (const c of childIds(g, member.id)) kidIds.add(c);
 
     const kids = [...kidIds]
       .map((id) => g.people.get(id))
@@ -239,10 +251,10 @@ export function buildForest(g: Graph): UnitNode[] {
     // the person's own children (other parent not recorded) come last.
     const memberFor = (c: Person): string => {
       const parents = new Set((g.parentRels.get(c.id) ?? []).map((r) => r.personA));
-      return spouses.find((s) => parents.has(s.id))?.id ?? p.id;
+      return partners.find((s) => parents.has(s.id))?.id ?? p.id;
     };
     const children: UnitNode[] = [];
-    for (const memberId of [...spouses.map((s) => s.id), p.id]) {
+    for (const memberId of [...partners.map((s) => s.id), p.id]) {
       const group = kids.filter((c) => memberFor(c) === memberId).sort(byBirthThenName);
       for (const kid of group) {
         if (placed.has(kid.id)) continue;
@@ -252,7 +264,7 @@ export function buildForest(g: Graph): UnitNode[] {
       }
     }
 
-    return { person: p, spouses, gen: gens.get(p.id) ?? 0, children };
+    return { person: p, spouses, refs, gen: gens.get(p.id) ?? 0, children };
   };
 
   const everyone = [...g.people.values()];

@@ -309,7 +309,7 @@ function Chart() {
   // Centre the chart on a person once the layout that contains them is ready.
   useEffect(() => {
     if (!pendingFocus) return;
-    const card = layout.cards.find((c) => c.id === pendingFocus);
+    const card = layout.cards.find((c) => c.id === pendingFocus && !c.isRef);
     const box = boxRef.current;
     if (card && box) {
       setView((v) => {
@@ -326,7 +326,7 @@ function Chart() {
 
   const focusPerson = (id: string) => {
     setSelectedId(id);
-    if (!layout.cards.some((c) => c.id === id)) setBranchId(null);
+    if (!layout.cards.some((c) => c.id === id && !c.isRef)) setBranchId(null);
     setPendingFocus(id);
     setQuery('');
   };
@@ -398,7 +398,9 @@ function Chart() {
                 const info = cardInfo.get(c.id);
                 if (!p || !info) return null;
                 const isSel = c.id === selectedId;
-                const genText = c.isSpouse
+                const genText = c.isRef
+                  ? `⚭ ${t('spouseWord')} ↗`
+                  : c.isSpouse
                   ? `⚭ ${t('spouseWord')}`
                   : `${t('genLabel')} ${num(c.gen + 1, lang)}`;
                 const onKey = (e: KeyboardEvent<SVGGElement>) => {
@@ -409,7 +411,7 @@ function Chart() {
                 };
                 return (
                   <g
-                    key={c.id}
+                    key={c.isRef ? `${c.id}:ref` : c.id}
                     transform={`translate(${c.x} ${c.y})`}
                     className="chart-card"
                     role="button"
@@ -427,6 +429,7 @@ function Chart() {
                       stroke={STROKES[c.gen % 6]}
                       strokeWidth={isSel ? 4 : 1.5}
                       strokeDasharray={c.isSpouse ? '6 4' : undefined}
+                      opacity={c.isRef ? 0.7 : 1}
                     />
                     <text x={c.w / 2} y={23} textAnchor="middle" className="card-name">
                       {info.name}

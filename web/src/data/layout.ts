@@ -21,6 +21,8 @@ export interface PlacedCard {
   isSpouse: boolean;
   /** For a spouse: the person whose box this one hangs from. */
   partnerOf?: string;
+  /** A reference box: this person is drawn in full in another branch. */
+  isRef?: boolean;
 }
 
 export interface ChartLayout {
@@ -37,6 +39,7 @@ export interface ChartLayout {
 interface Slot {
   /** The spouse shown in this slot; absent for the person's own children. */
   spouse?: Person;
+  isRef?: boolean;
   spouseW: number;
   kids: Measured[];
   kidsWidth: number;
@@ -54,17 +57,21 @@ interface Measured {
 
 function measure(node: UnitNode, widthOf: WidthOf): Measured {
   const slots: Slot[] = [];
-  const makeSlot = (spouse: Person | undefined, ownerId: string): Slot | null => {
+  const makeSlot = (spouse: Person | undefined, ownerId: string, isRef = false): Slot | null => {
     const kids = node.children.filter((k) => (k.fromId ?? node.person.id) === ownerId).map((k) => measure(k, widthOf));
     if (!spouse && kids.length === 0) return null;
     const kidsWidth = kids.length
       ? kids.reduce((s, k) => s + k.width, 0) + SIBLING_GAP * (kids.length - 1)
       : 0;
     const spouseW = spouse ? widthOf(spouse.id) : 0;
-    return { spouse, spouseW, kids, kidsWidth, width: Math.max(spouseW, kidsWidth) };
+    return { spouse, isRef, spouseW, kids, kidsWidth, width: Math.max(spouseW, kidsWidth) };
   };
   for (const s of node.spouses) {
     const slot = makeSlot(s, s.id);
+    if (slot) slots.push(slot);
+  }
+  for (const s of node.refs) {
+    const slot = makeSlot(s, s.id, true);
     if (slot) slots.push(slot);
   }
   const own = makeSlot(undefined, node.person.id);
@@ -80,7 +87,7 @@ function measure(node: UnitNode, widthOf: WidthOf): Measured {
     slots,
     slotsWidth,
     width: Math.max(personW, slotsWidth),
-    hasSpouses: node.spouses.length > 0,
+    hasSpouses: node.spouses.length + node.refs.length > 0,
   };
 }
 
@@ -138,6 +145,7 @@ export function layoutForest(forest: UnitNode[], widthOf: WidthOf = () => CARD_W
           gen: m.node.gen,
           isSpouse: true,
           partnerOf: m.node.person.id,
+          isRef: sl.isRef,
         });
         spouseLines.push({ points: elbow(personCx, y + CARD_H, slotCx, spouseY, dropMid) });
         fromX = slotCx;

@@ -29,7 +29,7 @@ function Row({ node, badges, graph, collapsed, toggle }: RowProps) {
   const approx = t('fApprox');
   const id = node.person.id;
   const isCollapsed = collapsed.has(id);
-  const hasBelow = node.children.length > 0 || node.spouses.length > 0;
+  const hasBelow = node.children.length > 0 || node.spouses.length > 0 || node.refs.length > 0;
   const span = lifeSpan(node.person, lang, approx);
 
   const kidsOf = (ownerId: string) => node.children.filter((c) => (c.fromId ?? id) === ownerId);
@@ -87,7 +87,10 @@ function Row({ node, badges, graph, collapsed, toggle }: RowProps) {
       {hasBelow && !isCollapsed && (
         <>
           {/* Each spouse follows the person, half a step in, with their own children below. */}
-          {node.spouses.map((s) => {
+          {[
+            ...node.spouses.map((s) => ({ s, ref: false })),
+            ...node.refs.map((s) => ({ s, ref: true })),
+          ].map(({ s, ref }) => {
             const kids = kidsOf(s.id);
             const sCollapsed = collapsed.has(s.id);
             const sSpan = lifeSpan(s, lang, approx);
@@ -114,6 +117,7 @@ function Row({ node, badges, graph, collapsed, toggle }: RowProps) {
                         {personName(s, lang, unknown)}
                       </Link>
                       {sSpan && <span className="muted small"> {sSpan}</span>}
+                      {ref && <span className="badge">{t('spouseElsewhere')}</span>}
                       {sCollapsed && kids.length > 0 && (
                         <span className="muted small"> · {num(kids.length, lang)}</span>
                       )}
