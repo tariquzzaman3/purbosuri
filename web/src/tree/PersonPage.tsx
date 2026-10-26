@@ -10,7 +10,7 @@ import {
 } from '../data/graph';
 import { formatDate, lifeSpan, num, personName } from '../data/format';
 import { KIND_KEYS, VERIFICATION_KEYS, relationshipBadges } from '../data/labels';
-import { addRelationship, deletePerson, removeRelationship } from '../data/mutations';
+import { addRelationship, deletePerson, removeRelationship, savePublicContact } from '../data/mutations';
 import type { Person, RelKind, Relationship } from '../data/types';
 import { TreeScreen } from './TreeScreen';
 import { useTree } from './TreeContext';
@@ -21,6 +21,82 @@ const WARNING_KEYS: Record<WarningCode, TKey> = {
   manyBioParents: 'warnManyBio',
   spouseIsRelative: 'warnSpouseRelative',
 };
+
+/** The contact details a person chose to show to everyone in the tree; the person can edit their own. */
+function ContactBox({ person }: { person: Person }) {
+  const { t } = useI18n();
+  const { current, myPersonId } = useTree();
+  const mine = myPersonId === person.id;
+  const shown = person.publicContact;
+  const [phone, setPhone] = useState(shown?.phone ?? '');
+  const [facebook, setFacebook] = useState(shown?.facebook ?? '');
+  const [email, setEmail] = useState(shown?.email ?? '');
+  const [note, setNote] = useState<string | null>(null);
+  const treeId = current?.id;
+
+  if (!mine && !(shown && (shown.phone || shown.facebook || shown.email))) return null;
+
+  const save = async (clear: boolean) => {
+    if (!treeId) return;
+    setNote(null);
+    try {
+      await savePublicContact(treeId, person.id, clear ? {} : { phone, facebook, email });
+      if (clear) {
+        setPhone('');
+        setFacebook('');
+        setEmail('');
+      }
+      setNote(t('contactSaved'));
+    } catch {
+      setNote(t('errSave'));
+    }
+  };
+
+  return (
+    <section className="card">
+      <h3>{t('contactTitle')}</h3>
+      {shown && (shown.phone || shown.facebook || shown.email) && (
+        <>
+          <dl className="details">
+            <Detail label={t('cPhone')} value={shown.phone} />
+            <Detail label={t('cFacebook')} value={shown.facebook} />
+            <Detail label={t('cEmail')} value={shown.email} />
+          </dl>
+          <p className="muted small">{t('contactShownNote')}</p>
+        </>
+      )}
+      {mine && (
+        <div className="contact-edit">
+          <h4>{t('contactMine')}</h4>
+          <p className="muted small">{t('contactMineHint')}</p>
+          <label className="field">
+            <span>{t('cPhone')}</span>
+            <input type="tel" inputMode="tel" value={phone} maxLength={40} onChange={(e) => setPhone(e.target.value)} />
+          </label>
+          <label className="field">
+            <span>{t('cFacebook')}</span>
+            <input type="text" value={facebook} maxLength={200} onChange={(e) => setFacebook(e.target.value)} />
+          </label>
+          <label className="field">
+            <span>{t('cEmail')}</span>
+            <input type="email" inputMode="email" value={email} maxLength={200} onChange={(e) => setEmail(e.target.value)} />
+          </label>
+          <div className="panel-actions">
+            <button type="button" className="btn primary small" onClick={() => void save(false)}>
+              {t('contactSave')}
+            </button>
+            {shown && (
+              <button type="button" className="btn small" onClick={() => void save(true)}>
+                {t('contactHide')}
+              </button>
+            )}
+          </div>
+          {note && <p className="muted small" role="status">{note}</p>}
+        </div>
+      )}
+    </section>
+  );
+}
 
 function Detail({ label, value }: { label: string; value?: string }) {
   if (!value) return null;
@@ -295,6 +371,8 @@ function Profile({ person }: { person: Person }) {
           />
         </dl>
       </section>
+
+      <ContactBox person={person} />
 
       <RelatedList title={t('secParents')} items={parentItems} onRemove={canEdit ? (r) => void onRemove(r) : undefined} />
       <RelatedList title={t('secSpouses')} items={spouseItems} onRemove={canEdit ? (r) => void onRemove(r) : undefined} />

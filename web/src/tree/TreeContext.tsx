@@ -7,12 +7,13 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { collection, doc, onSnapshot } from 'firebase/firestore';
+import { collection, doc, onSnapshot, query, where } from 'firebase/firestore';
+import { usePending, type PendingJoin } from './usePending';
 import { freeSlot, giveSlot, removeFromMyList } from '../data/mutations';
 import { useAuth } from '../auth';
 import { db } from '../firebase';
 import { buildGraph, type Graph } from '../data/graph';
-import type { Person, Relationship, Role, TreeRef } from '../data/types';
+import type { JoinRequest, Person, Relationship, Role, TreeRef, TreeSettings } from '../data/types';
 
 interface TreeValue {
   /** True once the person's list of trees has loaded. */
@@ -31,6 +32,16 @@ interface TreeValue {
   people: Person[];
   rels: Relationship[];
   graph: Graph;
+  /** The current tree's switches (who may invite). */
+  settings: TreeSettings;
+  /** The person in the tree that I am, once an admin has linked me. */
+  myPersonId: string | null;
+  /** Whether I may create invitations in this tree. */
+  canInvite: boolean;
+  /** Join requests waiting for a decision (managers and admins only). */
+  joinRequests: JoinRequest[];
+  /** Trees I asked to join and have not entered yet. */
+  pending: PendingJoin[];
   /** Owner, reviewer and contributor can add people. */
   canContribute: boolean;
   /** Owner and reviewer can edit and delete. */
@@ -57,11 +68,13 @@ export function TreeProvider({ children }: { children: ReactNode }) {
 
   const [index, setIndex] = useState<TreeRef[]>([]);
   // What each tree says about itself. 'gone' means it was deleted or I was removed from it.
-  const [meta, setMeta] = useState<Record<string, { name: string; ownerUid: string } | 'gone'>>({});
+  const [meta, setMeta] = useState<Record<string, { name: string; ownerUid: string; settings: TreeSettings } | 'gone'>>({});
   const [treesLoaded, setTreesLoaded] = useState(false);
   const [currentId, setCurrentId] = useState<string | null>(readSavedTree);
 
   const [role, setRole] = useState<Role | null>(null);
+  const [myPersonId, setMyPersonId] = useState<string | null>(null);
+  const [joinRequests, setJoinRequests] = useState<JoinRequest[]>([]);
   const [people, setPeople] = useState<Person[]>([]);
   const [rels, setRels] = useState<Relationship[]>([]);
   const [ready, setReady] = useState(false);
@@ -113,7 +126,11 @@ export function TreeProvider({ children }: { children: ReactNode }) {
             const d = snap.data();
             setMeta((m) => ({
               ...m,
-              [ref.id]: { name: String(d.name ?? ref.name), ownerUid: String(d.ownerUid ?? '') },
+              [ref.id]: {
+                name: String(d.name ?? ref.name),
+                ownerUid: String(d.ownerUid ?? ''),
+                settings: (d.settings ?? {}) as TreeSettings,
+              },
             }));
           } else if (!snap.metadata.fromCache && !snap.metadata.hasPendingWrites) {
             markGone(ref.id);
@@ -143,7 +160,9 @@ export function TreeProvider({ children }: { children: ReactNode }) {
         .filter((ref) => meta[ref.id] !== 'gone')
         .map((ref) => {
           const m = meta[ref.id];
-          return m && m !== 'gone' ? { id: ref.id, name: m.name, ownerUid: m.ownerUid, slot: ref.slot } : ref;
+          return m && m !== 'gone'
+            ? { id: ref.id, name: m.name, ownerUid: m.ownerUid, slot: ref.slot, settings: m.settings }
+            : ref;
         }),
     [index, meta],
   );
@@ -203,6 +222,7 @@ export function TreeProvider({ children }: { children: ReactNode }) {
         doc(db, 'trees', treeId, 'members', uid),
         (snap) => {
           setRole(snap.exists() ? (snap.data().role as Role) : null);
+          setMyPersonId(snap.exists() && typeof snap.data().personId === 'string' ? snap.data().personId : null);
           roleLoaded = true;
           check();
         },
@@ -232,6 +252,29 @@ export function TreeProvider({ children }: { children: ReactNode }) {
 
   const graph = useMemo(() => (people.length ? buildGraph(people, rels) : EMPTY_GRAPH), [people, rels]);
 
+  const settings = useMemo<TreeSettings>(() => current?.settings ?? {}, [current]);
+  const canEdit = role === 'owner' || role === 'reviewer';
+  const canInvite =
+    role === 'owner' ||
+    (role === 'reviewer' && settings.adminsCanInvite !== false) ||
+    (role === 'contributor' && settings.participantsCanInvite === true);
+
+  // Requests to join this tree that are waiting for a decision (managers and admins only).
+  useEffect(() => {
+    setJoinRequests([]);
+    if (!db || !treeId || !canEdit) return;
+    return onSnapshot(
+      query(collection(db, 'trees', treeId, 'joinRequests'), where('status', '==', 'pending')),
+      (snap) =>
+        setJoinRequests(
+          snap.docs.map((d) => ({ ...(d.data() as Omit<JoinRequest, 'uid'>), uid: d.id })),
+        ),
+      () => setJoinRequests([]),
+    );
+  }, [treeId, canEdit]);
+
+  const pending = usePending(uid, nextSlot);
+
   const value = useMemo<TreeValue>(
     () => ({
       treesLoaded,
@@ -246,10 +289,34 @@ export function TreeProvider({ children }: { children: ReactNode }) {
       people,
       rels,
       graph,
+      settings,
+      myPersonId,
+      canInvite,
+      joinRequests,
+      pending,
       canContribute: role === 'owner' || role === 'reviewer' || role === 'contributor',
-      canEdit: role === 'owner' || role === 'reviewer',
+      canEdit,
     }),
-    [treesLoaded, trees, ownedCount, nextSlot, current, chooseTree, role, ready, error, people, rels, graph],
+    [
+      treesLoaded,
+      trees,
+      ownedCount,
+      nextSlot,
+      current,
+      chooseTree,
+      role,
+      ready,
+      error,
+      people,
+      rels,
+      graph,
+      settings,
+      myPersonId,
+      canInvite,
+      joinRequests,
+      pending,
+      canEdit,
+    ],
   );
 
   return <TreeContext.Provider value={value}>{children}</TreeContext.Provider>;
