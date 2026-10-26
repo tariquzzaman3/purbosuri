@@ -61,8 +61,77 @@ function relationshipData(uid: string, rel: NewRelationship) {
   };
 }
 
-/** One person can create at most this many trees. */
-export const MAX_OWNED_TREES = 5;
+/** One person can belong to at most this many trees, created or joined. */
+export const MAX_TREES = 5;
+
+/** The lowest numbered slot (1 to 5) that no tree in the person's list uses, or null if all are full. */
+export function freeSlot(trees: Array<{ slot?: number }>): number | null {
+  const used = new Set(trees.map((t) => t.slot));
+  for (let n = 1; n <= MAX_TREES; n++) if (!used.has(n)) return n;
+  return null;
+}
+
+/** Takes a slot for a tree in the person's own list. Used when joining and for older entries. */
+export async function addToMyList(uid: string, treeId: string, name: string, slot: number): Promise<void> {
+  const d = database();
+  const batch = writeBatch(d);
+  batch.set(doc(d, 'users', uid, 'slots', String(slot)), { treeId });
+  batch.set(doc(d, 'users', uid, 'trees', treeId), { name, addedAt: serverTimestamp(), slot });
+  await batch.commit();
+}
+
+/** Gives an older list entry (made before slots existed) its slot. */
+export async function giveSlot(uid: string, treeId: string, slot: number): Promise<void> {
+  const d = database();
+  const batch = writeBatch(d);
+  batch.set(doc(d, 'users', uid, 'slots', String(slot)), { treeId });
+  batch.update(doc(d, 'users', uid, 'trees', treeId), { slot });
+  await batch.commit();
+}
+
+/** Takes a tree out of the person's own list and frees its slot. */
+export async function removeFromMyList(uid: string, treeId: string, slot?: number): Promise<void> {
+  const d = database();
+  const batch = writeBatch(d);
+  batch.delete(doc(d, 'users', uid, 'trees', treeId));
+  if (slot) batch.delete(doc(d, 'users', uid, 'slots', String(slot)));
+  await batch.commit();
+}
+
+export type MemberRole = 'owner' | 'reviewer' | 'contributor' | 'viewer';
+
+/** Manager or admin: make someone an admin or a participant. */
+export async function setMemberRole(treeId: string, memberUid: string, role: 'reviewer' | 'contributor'): Promise<void> {
+  await updateDoc(doc(database(), 'trees', treeId, 'members', memberUid), { role });
+}
+
+/** An admin steps down to participant. */
+export async function stepDown(treeId: string, uid: string): Promise<void> {
+  await updateDoc(doc(database(), 'trees', treeId, 'members', uid), { role: 'contributor' });
+}
+
+/** Manager or admin: take someone out of the tree. */
+export async function removeMember(treeId: string, memberUid: string): Promise<void> {
+  const d = database();
+  const batch = writeBatch(d);
+  batch.delete(doc(d, 'trees', treeId, 'members', memberUid));
+  await batch.commit();
+}
+
+/** The manager hands the tree to another member and becomes an admin or a participant. */
+export async function transferManager(
+  treeId: string,
+  fromUid: string,
+  toUid: string,
+  myNewRole: 'reviewer' | 'contributor',
+): Promise<void> {
+  const d = database();
+  const batch = writeBatch(d);
+  batch.update(doc(d, 'trees', treeId, 'members', toUid), { role: 'owner' });
+  batch.update(doc(d, 'trees', treeId, 'members', fromUid), { role: myNewRole });
+  batch.update(doc(d, 'trees', treeId), { ownerUid: toUid });
+  await batch.commit();
+}
 
 /** Renames a tree (the admin only; the rules check this). */
 export async function renameTree(treeId: string, name: string): Promise<void> {
@@ -74,7 +143,7 @@ export async function renameTree(treeId: string, name: string): Promise<void> {
  * Deletes a tree the person created: every person and relationship, then the tree itself,
  * then the person's own list entry. (Other members' list entries clean themselves up.)
  */
-export async function deleteTree(treeId: string, uid: string): Promise<void> {
+export async function deleteTree(treeId: string, uid: string, slot?: number): Promise<void> {
   const d = database();
   for (const part of ['relationships', 'people'] as const) {
     const snap = await getDocs(collection(d, 'trees', treeId, part));
@@ -87,11 +156,12 @@ export async function deleteTree(treeId: string, uid: string): Promise<void> {
   const last = writeBatch(d);
   last.delete(doc(d, 'trees', treeId));
   last.delete(doc(d, 'users', uid, 'trees', treeId));
+  if (slot) last.delete(doc(d, 'users', uid, 'slots', String(slot)));
   await last.commit();
 }
 
 /** Creates a tree, its owner membership and the owner's private list entry together. */
-export async function createTree(uid: string, displayName: string, name: string): Promise<string> {
+export async function createTree(uid: string, displayName: string, name: string, slot: number): Promise<string> {
   const d = database();
   const treeRef = doc(collection(d, 'trees'));
   const batch = writeBatch(d);
@@ -101,7 +171,8 @@ export async function createTree(uid: string, displayName: string, name: string)
     displayName: (displayName || 'Owner').slice(0, 100),
     joinedAt: serverTimestamp(),
   });
-  batch.set(doc(d, 'users', uid, 'trees', treeRef.id), { name: name.trim(), addedAt: serverTimestamp() });
+  batch.set(doc(d, 'users', uid, 'slots', String(slot)), { treeId: treeRef.id });
+  batch.set(doc(d, 'users', uid, 'trees', treeRef.id), { name: name.trim(), addedAt: serverTimestamp(), slot });
   await batch.commit();
   return treeRef.id;
 }

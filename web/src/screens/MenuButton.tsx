@@ -10,7 +10,7 @@ const APP_URL = 'https://purbosuri.web.app';
 export function MenuButton() {
   const { t } = useI18n();
   const { user, logOut } = useAuth();
-  const { current } = useTree();
+  const { current, canEdit } = useTree();
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const wrap = useRef<HTMLDivElement>(null);
@@ -90,6 +90,14 @@ export function MenuButton() {
           )}
           <Link className="menu-item" to="/home/trees" onClick={close}>
             {t('menuTrees')}
+          </Link>
+          {canEdit && (
+            <Link className="menu-item" to="/home/members" onClick={close}>
+              {t('menuMembers')}
+            </Link>
+          )}
+          <Link className="menu-item" to="/home/install" onClick={close}>
+            {t('menuInstall')}
           </Link>
           <Link className="menu-item" to="/home/settings" onClick={close}>
             {t('menuSettings')}
