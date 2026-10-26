@@ -7,7 +7,8 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { collection, deleteDoc, doc, onSnapshot } from 'firebase/firestore';
+import { collection, doc, onSnapshot } from 'firebase/firestore';
+import { freeSlot, giveSlot, removeFromMyList } from '../data/mutations';
 import { useAuth } from '../auth';
 import { db } from '../firebase';
 import { buildGraph, type Graph } from '../data/graph';
@@ -19,6 +20,8 @@ interface TreeValue {
   trees: TreeRef[];
   /** How many trees this person created (the limit applies to these). */
   ownedCount: number;
+  /** The next free one of the person's five tree slots, or null when all five are used. */
+  nextSlot: number | null;
   current: TreeRef | null;
   chooseTree: (id: string) => void;
   role: Role | null;
@@ -71,7 +74,12 @@ export function TreeProvider({ children }: { children: ReactNode }) {
     return onSnapshot(
       collection(db, 'users', uid, 'trees'),
       (snap) => {
-        setIndex(snap.docs.map((d) => ({ id: d.id, name: String(d.data().name ?? '') })));
+        setIndex(
+          snap.docs.map((d) => {
+            const slot = d.data().slot;
+            return { id: d.id, name: String(d.data().name ?? ''), slot: typeof slot === 'number' ? slot : undefined };
+          }),
+        );
         setTreesLoaded(true);
       },
       () => {
@@ -94,7 +102,7 @@ export function TreeProvider({ children }: { children: ReactNode }) {
 
     const markGone = (id: string) => {
       setMeta((m) => ({ ...m, [id]: 'gone' }));
-      void deleteDoc(doc(database, 'users', uid, 'trees', id)).catch(() => undefined);
+      void removeFromMyList(uid, id, index.find((x) => x.id === id)?.slot).catch(() => undefined);
     };
 
     const watch = (ref: TreeRef, attempt: number) => {
@@ -135,11 +143,27 @@ export function TreeProvider({ children }: { children: ReactNode }) {
         .filter((ref) => meta[ref.id] !== 'gone')
         .map((ref) => {
           const m = meta[ref.id];
-          return m && m !== 'gone' ? { id: ref.id, name: m.name, ownerUid: m.ownerUid } : ref;
+          return m && m !== 'gone' ? { id: ref.id, name: m.name, ownerUid: m.ownerUid, slot: ref.slot } : ref;
         }),
     [index, meta],
   );
   const ownedCount = trees.filter((x) => x.ownerUid === uid).length;
+  const nextSlot = freeSlot(index.filter((x) => meta[x.id] !== 'gone'));
+
+  // Entries made before the five slots existed get a slot, once.
+  useEffect(() => {
+    if (!db || !uid || !treesLoaded) return;
+    const legacy = index.filter((x) => x.slot === undefined);
+    if (legacy.length === 0) return;
+    const taken = [...index];
+    legacy.forEach((x) => {
+      const n = freeSlot(taken);
+      if (n === null) return;
+      taken.push({ ...x, slot: n });
+      void giveSlot(uid, x.id, n).catch(() => undefined);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uid, treesLoaded, indexKey]);
 
   const current = useMemo(
     () => trees.find((t) => t.id === currentId) ?? trees[0] ?? null,
@@ -213,6 +237,7 @@ export function TreeProvider({ children }: { children: ReactNode }) {
       treesLoaded,
       trees,
       ownedCount,
+      nextSlot,
       current,
       chooseTree,
       role,
@@ -224,7 +249,7 @@ export function TreeProvider({ children }: { children: ReactNode }) {
       canContribute: role === 'owner' || role === 'reviewer' || role === 'contributor',
       canEdit: role === 'owner' || role === 'reviewer',
     }),
-    [treesLoaded, trees, ownedCount, current, chooseTree, role, ready, error, people, rels, graph],
+    [treesLoaded, trees, ownedCount, nextSlot, current, chooseTree, role, ready, error, people, rels, graph],
   );
 
   return <TreeContext.Provider value={value}>{children}</TreeContext.Provider>;
