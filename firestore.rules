@@ -171,7 +171,9 @@ service cloud.firestore {
         && d.name.size() <= 120
         && optMap(d, 'settings')
         && (!('settings' in d)
-            || (d.settings.keys().hasOnly(['adminsCanInvite', 'participantsCanInvite'])
+            || (d.settings.keys().hasOnly(['adminsCanInvite', 'participantsCanInvite', 'inviteDays'])
+                && (!('inviteDays' in d.settings)
+                    || (d.settings.inviteDays is int && d.settings.inviteDays >= 1 && d.settings.inviteDays <= 30))
                 && (!('adminsCanInvite' in d.settings) || d.settings.adminsCanInvite is bool)
                 && (!('participantsCanInvite' in d.settings) || d.settings.participantsCanInvite is bool)));
     }
@@ -338,7 +340,9 @@ service cloud.firestore {
       match /people/{personId} {
         allow read: if isMember(treeId);
 
-        allow create: if canContribute(treeId)
+        // Only the manager and admins add people. A participant proposes it, and an admin
+        // approves (which is when the person is written here).
+        allow create: if isReviewer(treeId)
           && validPerson(request.resource.data)
           && request.resource.data.createdBy == request.auth.uid
           && request.resource.data.createdAt == request.time;
@@ -381,7 +385,7 @@ service cloud.firestore {
           && request.resource.data.createdAt == request.time
           && request.resource.data.expiresAt is timestamp
           && request.resource.data.expiresAt > request.time
-          && request.resource.data.expiresAt <= request.time + duration.value(30, 'd')
+          && request.resource.data.expiresAt <= request.time + duration.value(treeSetting(treeId, 'inviteDays', 7) + 1, 'd')
           && canInvite(treeId, request.resource.data.role);
 
         // Used once, in the same batch as the join request that uses it.
@@ -468,7 +472,7 @@ service cloud.firestore {
       match /relationships/{relId} {
         allow read: if isMember(treeId);
 
-        allow create: if canContribute(treeId)
+        allow create: if isReviewer(treeId)
           && validRelationship(request.resource.data)
           && request.resource.data.createdBy == request.auth.uid
           && request.resource.data.createdAt == request.time;
@@ -561,16 +565,27 @@ service cloud.firestore {
 
       // ---------- edit proposals, comments and votes ----------
 
+      // A participant's suggestion to add, change or remove a person or a relationship.
+      // `kind` says which, `payload` holds the details. The admin team sees every suggestion
+      // and its author; a participant sees only their own.
       match /proposals/{proposalId} {
-        allow read: if isMember(treeId);
+        allow read: if isReviewer(treeId) || (isMember(treeId) && resource.data.proposedBy == request.auth.uid);
 
         allow create: if canContribute(treeId)
           && request.resource.data.keys().hasOnly([
                'targetType', 'targetId', 'field', 'oldValue', 'newValue',
-               'reason', 'evidenceIds', 'status', 'proposedBy', 'createdAt'
+               'reason', 'evidenceIds', 'status', 'proposedBy', 'createdAt',
+               'kind', 'payload', 'proposerName', 'targetName'
              ])
           && request.resource.data.keys().hasAll(
                ['targetType', 'targetId', 'reason', 'status', 'proposedBy', 'createdAt'])
+          && (!('kind' in request.resource.data)
+              || request.resource.data.kind in
+                   ['addPerson', 'editPerson', 'deletePerson', 'addRelation', 'removeRelation'])
+          && (!('payload' in request.resource.data)
+              || (request.resource.data.payload is map && request.resource.data.payload.keys().size() <= 40))
+          && optString(request.resource.data, 'proposerName', 100)
+          && optString(request.resource.data, 'targetName', 200)
           && request.resource.data.targetType in ['person', 'relationship', 'memory', 'media']
           && request.resource.data.targetId is string
           && request.resource.data.reason is string

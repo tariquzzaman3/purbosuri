@@ -12,7 +12,7 @@ import {
   type Firestore,
 } from 'firebase/firestore';
 import { db } from '../firebase';
-import type { Contact, JoinRequest, PersonFields, RelKind, RelStatus, RelType, Relationship, TreeSettings } from './types';
+import type { Contact, JoinRequest, Person, PersonFields, RelKind, RelStatus, RelType, Relationship, TreeSettings } from './types';
 
 function database(): Firestore {
   if (!db) throw new Error('not-configured');
@@ -245,7 +245,7 @@ export async function removeRelationship(treeId: string, relId: string): Promise
 
 // ---------- invitations and joining ----------
 
-const INVITE_DAYS = 7;
+const DEFAULT_INVITE_DAYS = 7;
 
 /** Makes an invitation and returns its code. The link is built from the tree id and this code. */
 export async function createInvite(
@@ -253,6 +253,7 @@ export async function createInvite(
   uid: string,
   treeName: string,
   role: 'reviewer' | 'contributor',
+  days: number = DEFAULT_INVITE_DAYS,
 ): Promise<string> {
   const d = database();
   const ref = doc(collection(d, 'trees', treeId, 'invites'));
@@ -261,7 +262,7 @@ export async function createInvite(
     treeName,
     createdBy: uid,
     createdAt: serverTimestamp(),
-    expiresAt: Timestamp.fromMillis(Date.now() + INVITE_DAYS * 24 * 3600 * 1000),
+    expiresAt: Timestamp.fromMillis(Date.now() + days * 24 * 3600 * 1000),
   });
   return ref.id;
 }
@@ -415,5 +416,225 @@ export async function savePublicContact(treeId: string, personId: string, contac
   await updateDoc(doc(database(), 'trees', treeId, 'people', personId), {
     publicContact: Object.keys(cleaned).length > 0 ? cleaned : deleteField(),
     updatedAt: serverTimestamp(),
+  });
+}
+
+// ---------- suggestions from participants, and their approval ----------
+
+export type ProposalKind = 'addPerson' | 'editPerson' | 'deletePerson' | 'addRelation' | 'removeRelation';
+
+export interface Proposal {
+  id: string;
+  kind: ProposalKind;
+  targetId: string;
+  targetName?: string;
+  proposerName?: string;
+  reason: string;
+  payload: Record<string, unknown>;
+  status: 'pending' | 'approved' | 'rejected' | 'under_review' | 'more_info';
+  proposedBy: string;
+  decision?: string;
+  createdAt?: Date;
+}
+
+async function submitProposal(
+  treeId: string,
+  uid: string,
+  proposerName: string,
+  p: {
+    kind: ProposalKind;
+    targetType: 'person' | 'relationship';
+    targetId?: string;
+    targetName?: string;
+    payload: Record<string, unknown>;
+    reason: string;
+  },
+): Promise<void> {
+  const d = database();
+  const ref = doc(collection(d, 'trees', treeId, 'proposals'));
+  await setDoc(ref, {
+    kind: p.kind,
+    targetType: p.targetType,
+    targetId: p.targetId ?? '',
+    ...(p.targetName ? { targetName: p.targetName.slice(0, 200) } : {}),
+    proposerName: (proposerName || 'Member').slice(0, 100),
+    reason: p.reason.trim().slice(0, 5000),
+    payload: p.payload,
+    status: 'pending',
+    proposedBy: uid,
+    createdAt: serverTimestamp(),
+  });
+}
+
+export function proposeAddPerson(
+  treeId: string,
+  uid: string,
+  proposerName: string,
+  fields: PersonFields,
+  relation: { existingId: string; as: 'parent' | 'child' | 'spouse'; kind?: RelKind; existingName?: string } | undefined,
+  reason: string,
+) {
+  const name = fields.nameBn || fields.nameEn || '';
+  return submitProposal(treeId, uid, proposerName, {
+    kind: 'addPerson',
+    targetType: 'person',
+    targetName: name,
+    reason,
+    payload: { fields: clean({ ...fields }), ...(relation ? { relation: clean({ ...relation }) } : {}) },
+  });
+}
+
+/** Only the fields that really changed are sent; a cleared field is sent as null. */
+export function proposeEditPerson(
+  treeId: string,
+  uid: string,
+  proposerName: string,
+  person: Person,
+  fields: PersonFields,
+  reason: string,
+) {
+  const cleaned = clean({ ...fields });
+  const changes: Record<string, unknown> = {};
+  for (const key of PERSON_KEYS) {
+    const before = person[key] ?? null;
+    const after = key in cleaned ? cleaned[key] : null;
+    if (JSON.stringify(before) !== JSON.stringify(after)) changes[key] = after;
+  }
+  return submitProposal(treeId, uid, proposerName, {
+    kind: 'editPerson',
+    targetType: 'person',
+    targetId: person.id,
+    targetName: person.nameBn || person.nameEn,
+    reason,
+    payload: { changes },
+  });
+}
+
+export function proposeDeletePerson(
+  treeId: string,
+  uid: string,
+  proposerName: string,
+  person: { id: string; nameBn?: string; nameEn?: string },
+  reason: string,
+) {
+  return submitProposal(treeId, uid, proposerName, {
+    kind: 'deletePerson',
+    targetType: 'person',
+    targetId: person.id,
+    targetName: person.nameBn || person.nameEn,
+    reason,
+    payload: {},
+  });
+}
+
+export function proposeAddRelation(
+  treeId: string,
+  uid: string,
+  proposerName: string,
+  rel: NewRelationship,
+  description: string,
+  reason: string,
+) {
+  return submitProposal(treeId, uid, proposerName, {
+    kind: 'addRelation',
+    targetType: 'relationship',
+    targetName: description,
+    reason,
+    payload: { rel: clean({ ...rel }) },
+  });
+}
+
+export function proposeRemoveRelation(
+  treeId: string,
+  uid: string,
+  proposerName: string,
+  relId: string,
+  description: string,
+  reason: string,
+) {
+  return submitProposal(treeId, uid, proposerName, {
+    kind: 'removeRelation',
+    targetType: 'relationship',
+    targetId: relId,
+    targetName: description,
+    reason,
+    payload: { relId },
+  });
+}
+
+/**
+ * The admin approves a suggestion: the change is made and the suggestion is marked approved,
+ * in one batch. For names the admin can write the right one (for example the certificate
+ * name) instead of what was suggested: pass it as `overrides`.
+ */
+export async function approveProposal(
+  treeId: string,
+  adminUid: string,
+  p: Proposal,
+  rels: Relationship[],
+  overrides: Record<string, unknown> = {},
+): Promise<void> {
+  const d = database();
+  const batch = writeBatch(d);
+  const payload = p.payload as {
+    fields?: Record<string, unknown>;
+    relation?: { existingId: string; as: 'parent' | 'child' | 'spouse'; kind?: RelKind };
+    changes?: Record<string, unknown>;
+    rel?: NewRelationship;
+    relId?: string;
+  };
+
+  if (p.kind === 'addPerson') {
+    const personRef = doc(collection(d, 'trees', treeId, 'people'));
+    batch.set(personRef, {
+      ...clean({ ...(payload.fields ?? {}), ...overrides }),
+      createdBy: adminUid,
+      createdAt: serverTimestamp(),
+    });
+    if (payload.relation) {
+      const { existingId, as, kind } = payload.relation;
+      const rel: NewRelationship =
+        as === 'parent'
+          ? { type: 'parent', personA: personRef.id, personB: existingId, kind }
+          : as === 'child'
+            ? { type: 'parent', personA: existingId, personB: personRef.id, kind }
+            : { type: 'spouse', personA: existingId, personB: personRef.id };
+      batch.set(doc(collection(d, 'trees', treeId, 'relationships')), relationshipData(adminUid, rel));
+    }
+  } else if (p.kind === 'editPerson') {
+    const patch: Record<string, unknown> = { updatedAt: serverTimestamp() };
+    for (const [key, value] of Object.entries({ ...(payload.changes ?? {}), ...overrides })) {
+      if (!PERSON_KEYS.includes(key as keyof PersonFields)) continue;
+      patch[key] = value === null || value === '' ? deleteField() : value;
+    }
+    batch.update(doc(d, 'trees', treeId, 'people', p.targetId), patch);
+  } else if (p.kind === 'deletePerson') {
+    batch.delete(doc(d, 'trees', treeId, 'people', p.targetId));
+    for (const r of rels) {
+      if (r.personA === p.targetId || r.personB === p.targetId) {
+        batch.delete(doc(d, 'trees', treeId, 'relationships', r.id));
+      }
+    }
+  } else if (p.kind === 'addRelation' && payload.rel) {
+    batch.set(doc(collection(d, 'trees', treeId, 'relationships')), relationshipData(adminUid, payload.rel));
+  } else if (p.kind === 'removeRelation' && payload.relId) {
+    batch.delete(doc(d, 'trees', treeId, 'relationships', payload.relId));
+  }
+
+  batch.update(doc(d, 'trees', treeId, 'proposals', p.id), {
+    status: 'approved',
+    ...(Object.keys(overrides).length > 0 ? { decision: 'Approved with a correction by the admin team' } : {}),
+    reviewedBy: adminUid,
+    reviewedAt: serverTimestamp(),
+  });
+  await batch.commit();
+}
+
+export async function rejectProposal(treeId: string, adminUid: string, id: string, note: string): Promise<void> {
+  await updateDoc(doc(database(), 'trees', treeId, 'proposals', id), {
+    status: 'rejected',
+    ...(note.trim() ? { decision: note.trim().slice(0, 2000) } : {}),
+    reviewedBy: adminUid,
+    reviewedAt: serverTimestamp(),
   });
 }

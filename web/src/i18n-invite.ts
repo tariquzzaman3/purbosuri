@@ -6,7 +6,7 @@ export const inviteBn = {
 
   invTitle: 'আত্মীয়কে এই বংশধারায় আমন্ত্রণ',
   invIntro:
-    'একটি আমন্ত্রণ লিংক বানান এবং শুধু যাঁকে চান তাঁকে পাঠান। লিংকটি একজনই একবার ব্যবহার করতে পারবেন, ৭ দিন পর বাতিল হয়ে যায়। যোগ দেওয়ার পর একজন পরিচালক যাচাই করে অনুমোদন দিলে তবেই তিনি বংশধারা দেখতে পাবেন।',
+    'একটি আমন্ত্রণ লিংক বানান এবং শুধু যাঁকে চান তাঁকে পাঠান। লিংকটি একজনই একবার ব্যবহার করতে পারবেন, কয়েক দিন পর (সাধারণত ৭ দিন, ব্যবস্থাপক বদলাতে পারেন) বাতিল হয়ে যায়। যোগ দেওয়ার পর একজন পরিচালক যাচাই করে অনুমোদন দিলে তবেই তিনি বংশধারা দেখতে পাবেন।',
   invRole: 'কোন ভূমিকায় আমন্ত্রণ',
   invCreate: 'আমন্ত্রণ লিংক বানান',
   invShare: 'লিংক পাঠান',
@@ -103,7 +103,7 @@ export const inviteEn: typeof inviteBn = {
 
   invTitle: 'Invite a relative to this tree',
   invIntro:
-    'Create an invitation link and send it only to the person you want. One person can use it once, and it expires after 7 days. After they join, an admin checks who they are and approves them, and only then can they see the tree.',
+    'Create an invitation link and send it only to the person you want. One person can use it once, and it expires after a few days (7 by default; the manager can change this). After they join, an admin checks who they are and approves them, and only then can they see the tree.',
   invRole: 'Invite as',
   invCreate: 'Create invitation link',
   invShare: 'Send link',

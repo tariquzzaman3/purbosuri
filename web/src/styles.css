@@ -1238,3 +1238,18 @@ fieldset.field legend {
 .approve-box select[size] {
   width: 100%;
 }
+
+.inline-input {
+  min-height: 40px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1.5px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  max-width: 100%;
+}
+
+.rule {
+  margin-bottom: 10px;
+}

@@ -2,7 +2,7 @@ import { useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../auth';
 import { useI18n, type TKey } from '../i18n';
-import { addPerson, updatePerson } from '../data/mutations';
+import { addPerson, proposeAddPerson, proposeEditPerson, updatePerson } from '../data/mutations';
 import { personName } from '../data/format';
 import { KIND_KEYS, VERIFICATION_KEYS } from '../data/labels';
 import type { FlexDate, Person, PersonFields, RelKind, Verification } from '../data/types';
@@ -159,7 +159,7 @@ function statusOf(p?: Person): Status {
 function Form({ person }: { person?: Person }) {
   const { t, lang } = useI18n();
   const { user } = useAuth();
-  const { current, people, graph } = useTree();
+  const { current, people, graph, canEdit } = useTree();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const unknown = t('unknownName');
@@ -190,6 +190,8 @@ function Form({ person }: { person?: Person }) {
   );
   const [kind, setKind] = useState<RelKind>('biological');
 
+  const [reason, setReason] = useState('');
+  const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -231,16 +233,31 @@ function Form({ person }: { person?: Person }) {
       verification: verification || undefined,
     };
 
+    // Nobody can be added alone: everyone in a tree is connected to someone.
+    if (!person && people.length > 0 && !otherId) {
+      setError(t('errNeedRelation'));
+      return;
+    }
+
     setBusy(true);
     setError(null);
     try {
-      if (person) {
+      const relation = otherId
+        ? { existingId: otherId, as, kind: as === 'spouse' ? undefined : kind }
+        : undefined;
+      const myName = user.displayName || user.email || '';
+      if (!canEdit) {
+        // A participant only suggests; an admin decides.
+        if (person) {
+          await proposeEditPerson(current.id, user.uid, myName, person, fields, reason);
+        } else {
+          await proposeAddPerson(current.id, user.uid, myName, fields, relation, reason);
+        }
+        setSent(true);
+      } else if (person) {
         await updatePerson(current.id, person.id, fields);
         navigate(`/home/person/${person.id}`);
       } else {
-        const relation = otherId
-          ? { existingId: otherId, as, kind: as === 'spouse' ? undefined : kind }
-          : undefined;
         const id = await addPerson(current.id, user.uid, fields, relation);
         navigate(`/home/person/${id}`);
       }
@@ -300,6 +317,19 @@ function Form({ person }: { person?: Person }) {
           </>
         )}
       </fieldset>
+    );
+  }
+
+  if (sent) {
+    return (
+      <section className="card">
+        <p className="msg ok" role="status">
+          {t('suggestSent')}
+        </p>
+        <Link className="btn" to="/home">
+          {t('suggestBackToTree')}
+        </Link>
+      </section>
     );
   }
 
@@ -364,6 +394,14 @@ function Form({ person }: { person?: Person }) {
 
         {relationBlock}
 
+        {!canEdit && (
+          <label className="field">
+            <span>{t('fReason')}</span>
+            <small>{t('fReasonHint')}</small>
+            <textarea rows={3} value={reason} maxLength={2000} onChange={(e) => setReason(e.target.value)} />
+          </label>
+        )}
+
         {error && (
           <p className="msg error" role="alert">
             {error}
@@ -371,7 +409,7 @@ function Form({ person }: { person?: Person }) {
         )}
 
         <button className="btn primary" type="submit" disabled={busy}>
-          {busy ? t('saving') : t('save')}
+          {busy ? t('saving') : canEdit ? t('save') : t('formSuggestSubmit')}
         </button>
         <Link className="btn" to={person ? `/home/person/${person.id}` : '/home'}>
           {t('cancel')}
@@ -383,7 +421,7 @@ function Form({ person }: { person?: Person }) {
 
 function Guarded({ edit, personId }: { edit: boolean; personId?: string }) {
   const { t } = useI18n();
-  const { graph, canContribute, canEdit } = useTree();
+  const { graph, canContribute } = useTree();
   const person = personId ? graph.people.get(personId) : undefined;
 
   if (edit && !person) {
@@ -396,7 +434,7 @@ function Guarded({ edit, personId }: { edit: boolean; personId?: string }) {
       </section>
     );
   }
-  if (edit ? !canEdit : !canContribute) {
+  if (!canContribute) {
     return (
       <p className="msg error" role="alert">
         {t('errPermission')}

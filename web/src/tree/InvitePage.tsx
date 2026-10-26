@@ -18,7 +18,7 @@ const linkFor = (treeId: string, code: string) => `${window.location.origin}/joi
 export function InvitePage() {
   const { t, lang } = useI18n();
   const { user } = useAuth();
-  const { current, role, canInvite, ready } = useTree();
+  const { current, role, canInvite, ready, settings } = useTree();
   const [asRole, setAsRole] = useState<'reviewer' | 'contributor'>('contributor');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -58,7 +58,7 @@ export function InvitePage() {
     setError(null);
     setNote(null);
     try {
-      const code = await createInvite(treeId, user.uid, current.name, isAdmin ? asRole : 'contributor');
+      const code = await createInvite(treeId, user.uid, current.name, isAdmin ? asRole : 'contributor', settings.inviteDays ?? 7);
       setFresh(code);
     } catch {
       setError(t('errInvite'));

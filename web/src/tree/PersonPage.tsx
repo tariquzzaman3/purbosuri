@@ -10,7 +10,15 @@ import {
 } from '../data/graph';
 import { formatDate, lifeSpan, num, personName } from '../data/format';
 import { KIND_KEYS, VERIFICATION_KEYS, relationshipBadges } from '../data/labels';
-import { addRelationship, deletePerson, removeRelationship, savePublicContact } from '../data/mutations';
+import {
+  addRelationship,
+  deletePerson,
+  proposeAddRelation,
+  proposeDeletePerson,
+  proposeRemoveRelation,
+  removeRelationship,
+  savePublicContact,
+} from '../data/mutations';
 import type { Person, RelKind, Relationship } from '../data/types';
 import { TreeScreen } from './TreeScreen';
 import { useTree } from './TreeContext';
@@ -158,7 +166,8 @@ function RelatedList({
 function LinkExisting({ person }: { person: Person }) {
   const { t, lang } = useI18n();
   const { user } = useAuth();
-  const { current, people, graph } = useTree();
+  const { current, people, graph, canEdit } = useTree();
+  const [sentNote, setSentNote] = useState(false);
   const [otherId, setOtherId] = useState('');
   const [as, setAs] = useState<'parent' | 'child' | 'spouse'>('parent');
   const [kind, setKind] = useState<RelKind>('biological');
@@ -192,12 +201,25 @@ function LinkExisting({ person }: { person: Person }) {
     }
     setBusy(true);
     try {
-      await addRelationship(current.id, user.uid, {
-        type,
-        personA: a,
-        personB: b,
-        kind: type === 'parent' ? kind : undefined,
-      });
+      const rel = { type, personA: a, personB: b, kind: type === 'parent' ? kind : undefined };
+      if (canEdit) {
+        await addRelationship(current.id, user.uid, rel);
+      } else {
+        const nm = (id: string) => {
+          const x = graph.people.get(id);
+          return x ? personName(x, lang, t('unknownName')) : '';
+        };
+        const reason = window.prompt(t('suggestReasonPrompt')) ?? '';
+        await proposeAddRelation(
+          current.id,
+          user.uid,
+          user.displayName || user.email || '',
+          rel,
+          `${nm(a)} → ${nm(b)} (${type})`,
+          reason,
+        );
+        setSentNote(true);
+      }
       setOtherId('');
       setWarnings([]);
     } catch {
@@ -259,6 +281,11 @@ function LinkExisting({ person }: { person: Person }) {
           </button>
         </div>
       )}
+      {sentNote && (
+        <p className="msg ok" role="status">
+          {t('suggestSent')}
+        </p>
+      )}
       <button
         type="button"
         className="btn primary"
@@ -277,7 +304,10 @@ function Profile({ person }: { person: Person }) {
   const { current, graph, rels, canContribute, canEdit } = useTree();
   const unknown = t('unknownName');
   const approx = t('fApprox');
+  const { user } = useAuth();
   const [error, setError] = useState<string | null>(null);
+  const [sent, setSent] = useState(false);
+  const myName = user?.displayName || user?.email || '';
 
   const pick = (ids: string[]): Person[] =>
     ids.map((id) => graph.people.get(id)).filter((p): p is Person => p !== undefined);
@@ -299,9 +329,37 @@ function Profile({ person }: { person: Person }) {
   const siblingItems: RelatedItem[] = pick(siblingIds(graph, person.id)).map((p) => ({ person: p }));
 
   const onRemove = async (rel: Relationship) => {
-    if (!current || !window.confirm(t('confirmRemoveRel'))) return;
+    if (!current || !user) return;
+    if (!canEdit) {
+      const reason = window.prompt(t('suggestReasonPrompt'));
+      if (reason === null) return;
+      const nm = (id: string) => {
+        const x = graph.people.get(id);
+        return x ? personName(x, lang, unknown) : '';
+      };
+      try {
+        await proposeRemoveRelation(current.id, user.uid, myName, rel.id, `${nm(rel.personA)} — ${nm(rel.personB)}`, reason);
+        setSent(true);
+      } catch {
+        setError(t('errPermission'));
+      }
+      return;
+    }
+    if (!window.confirm(t('confirmRemoveRel'))) return;
     try {
       await removeRelationship(current.id, rel.id);
+    } catch {
+      setError(t('errPermission'));
+    }
+  };
+
+  const onSuggestDelete = async () => {
+    if (!current || !user) return;
+    const reason = window.prompt(t('suggestReasonPrompt'));
+    if (reason === null) return;
+    try {
+      await proposeDeletePerson(current.id, user.uid, myName, person, reason);
+      setSent(true);
     } catch {
       setError(t('errPermission'));
     }
@@ -337,6 +395,11 @@ function Profile({ person }: { person: Person }) {
             {error}
           </p>
         )}
+        {sent && (
+          <p className="msg ok" role="status">
+            {t('suggestSent')}
+          </p>
+        )}
         {canEdit && (
           <div className="panel-actions">
             <Link className="btn small" to={`/home/person/${person.id}/edit`}>
@@ -344,6 +407,16 @@ function Profile({ person }: { person: Person }) {
             </Link>
             <button type="button" className="btn small danger" onClick={() => void onDelete()}>
               {t('deletePerson')}
+            </button>
+          </div>
+        )}
+        {canContribute && !canEdit && (
+          <div className="panel-actions">
+            <Link className="btn small" to={`/home/person/${person.id}/edit`}>
+              {t('suggestEdit')}
+            </Link>
+            <button type="button" className="btn small danger" onClick={() => void onSuggestDelete()}>
+              {t('suggestDelete')}
             </button>
           </div>
         )}
@@ -374,9 +447,9 @@ function Profile({ person }: { person: Person }) {
 
       <ContactBox person={person} />
 
-      <RelatedList title={t('secParents')} items={parentItems} onRemove={canEdit ? (r) => void onRemove(r) : undefined} />
-      <RelatedList title={t('secSpouses')} items={spouseItems} onRemove={canEdit ? (r) => void onRemove(r) : undefined} />
-      <RelatedList title={t('secChildren')} items={childItems} onRemove={canEdit ? (r) => void onRemove(r) : undefined} />
+      <RelatedList title={t('secParents')} items={parentItems} onRemove={canContribute ? (r) => void onRemove(r) : undefined} />
+      <RelatedList title={t('secSpouses')} items={spouseItems} onRemove={canContribute ? (r) => void onRemove(r) : undefined} />
+      <RelatedList title={t('secChildren')} items={childItems} onRemove={canContribute ? (r) => void onRemove(r) : undefined} />
       <RelatedList title={t('secSiblings')} items={siblingItems} />
 
       {canContribute && (

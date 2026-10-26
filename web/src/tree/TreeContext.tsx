@@ -9,7 +9,7 @@ import {
 } from 'react';
 import { collection, doc, onSnapshot, query, where } from 'firebase/firestore';
 import { usePending, type PendingJoin } from './usePending';
-import { freeSlot, giveSlot, removeFromMyList } from '../data/mutations';
+import { freeSlot, giveSlot, removeFromMyList, type Proposal } from '../data/mutations';
 import { useAuth } from '../auth';
 import { db } from '../firebase';
 import { buildGraph, type Graph } from '../data/graph';
@@ -40,6 +40,8 @@ interface TreeValue {
   canInvite: boolean;
   /** Join requests waiting for a decision (managers and admins only). */
   joinRequests: JoinRequest[];
+  /** Suggestions: every pending one for admins; my own (any status) for participants. */
+  proposals: Proposal[];
   /** Trees I asked to join and have not entered yet. */
   pending: PendingJoin[];
   /** Owner, reviewer and contributor can add people. */
@@ -75,6 +77,7 @@ export function TreeProvider({ children }: { children: ReactNode }) {
   const [role, setRole] = useState<Role | null>(null);
   const [myPersonId, setMyPersonId] = useState<string | null>(null);
   const [joinRequests, setJoinRequests] = useState<JoinRequest[]>([]);
+  const [proposals, setProposals] = useState<Proposal[]>([]);
   const [people, setPeople] = useState<Person[]>([]);
   const [rels, setRels] = useState<Relationship[]>([]);
   const [ready, setReady] = useState(false);
@@ -275,6 +278,29 @@ export function TreeProvider({ children }: { children: ReactNode }) {
 
   const pending = usePending(uid, nextSlot);
 
+  // Suggestions: admins see every pending one; a participant sees their own, whatever their status.
+  useEffect(() => {
+    setProposals([]);
+    if (!db || !treeId || !uid || !role) return;
+    const col = collection(db, 'trees', treeId, 'proposals');
+    const q = canEdit ? query(col, where('status', '==', 'pending')) : query(col, where('proposedBy', '==', uid));
+    return onSnapshot(
+      q,
+      (snap) =>
+        setProposals(
+          snap.docs
+            .filter((d) => typeof d.data().kind === 'string')
+            .map((d) => ({
+              ...(d.data() as Omit<Proposal, 'id' | 'createdAt'>),
+              id: d.id,
+              createdAt: d.data().createdAt?.toDate?.(),
+            }))
+            .sort((a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0)),
+        ),
+      () => setProposals([]),
+    );
+  }, [treeId, uid, role, canEdit]);
+
   const value = useMemo<TreeValue>(
     () => ({
       treesLoaded,
@@ -293,6 +319,7 @@ export function TreeProvider({ children }: { children: ReactNode }) {
       myPersonId,
       canInvite,
       joinRequests,
+      proposals,
       pending,
       canContribute: role === 'owner' || role === 'reviewer' || role === 'contributor',
       canEdit,
@@ -314,6 +341,7 @@ export function TreeProvider({ children }: { children: ReactNode }) {
       myPersonId,
       canInvite,
       joinRequests,
+      proposals,
       pending,
       canEdit,
     ],

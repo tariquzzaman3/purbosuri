@@ -43,6 +43,8 @@ export interface TreeSettings {
   adminsCanInvite?: boolean;
   /** Participants may invite people as participants. Default off. */
   participantsCanInvite?: boolean;
+  /** How many days an invitation stays valid (1 to 30). Default 7. */
+  inviteDays?: number;
 }
 
 export interface JoinRequest {
