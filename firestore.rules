@@ -264,7 +264,13 @@ service cloud.firestore {
           && request.resource.data.joinedAt == request.time
           && get(joinDoc(treeId, memberUid)).data.status == 'pending'
           && getAfter(joinDoc(treeId, memberUid)).data.status == 'approved'
-          && request.resource.data.role == get(joinDoc(treeId, memberUid)).data.role;
+          && request.resource.data.role == get(joinDoc(treeId, memberUid)).data.role
+          // A replacement inherits the old member's role and place in the tree.
+          && (!('replaces' in get(joinDoc(treeId, memberUid)).data)
+              || (get(memberDoc(treeId, get(joinDoc(treeId, memberUid)).data.replaces)).data.role
+                    == request.resource.data.role
+                  && get(memberDoc(treeId, get(joinDoc(treeId, memberUid)).data.replaces)).data.get('personId', null)
+                    == request.resource.data.get('personId', null)));
 
         // Manager and admins can make someone else an admin or a participant. The manager's
         // own role is never touched this way.
@@ -377,7 +383,7 @@ service cloud.firestore {
         allow list: if isReviewer(treeId);
 
         allow create: if request.resource.data.keys().hasOnly(
-              ['role', 'treeName', 'createdBy', 'createdAt', 'expiresAt'])
+              ['role', 'treeName', 'createdBy', 'createdAt', 'expiresAt', 'replaces'])
           && request.resource.data.role in ['reviewer', 'contributor']
           && request.resource.data.treeName is string
           && request.resource.data.treeName.size() <= 120
@@ -386,7 +392,16 @@ service cloud.firestore {
           && request.resource.data.expiresAt is timestamp
           && request.resource.data.expiresAt > request.time
           && request.resource.data.expiresAt <= request.time + duration.value(treeSetting(treeId, 'inviteDays', 7) + 1, 'd')
-          && canInvite(treeId, request.resource.data.role);
+          && ((!('replaces' in request.resource.data)
+                && canInvite(treeId, request.resource.data.role))
+              // A recovery invitation: for someone who lost their email. The new account takes
+              // the place of the old member. Only the manager may replace an admin.
+              || ('replaces' in request.resource.data
+                && isReviewer(treeId)
+                && request.resource.data.replaces is string
+                && request.resource.data.replaces != request.auth.uid
+                && get(memberDoc(treeId, request.resource.data.replaces)).data.role == request.resource.data.role
+                && (isOwner(treeId) || request.resource.data.role == 'contributor')));
 
         // Used once, in the same batch as the join request that uses it.
         allow update: if signedIn()
@@ -407,8 +422,10 @@ service cloud.firestore {
       function validJoin(d) {
         return d.keys().hasOnly([
             'displayName', 'fatherName', 'motherName', 'contact', 'contactOf',
-            'inviteCode', 'role', 'status', 'createdAt', 'reviewedBy', 'reviewedAt', 'personId'
+            'inviteCode', 'role', 'status', 'createdAt', 'reviewedBy', 'reviewedAt', 'personId',
+            'replaces'
           ])
+          && optString(d, 'replaces', 100)
           && d.keys().hasAll(['displayName', 'inviteCode', 'role', 'status', 'createdAt'])
           && d.displayName is string && d.displayName.size() > 0 && d.displayName.size() <= 100
           && optString(d, 'fatherName', 100)
@@ -432,6 +449,8 @@ service cloud.firestore {
           && get(inviteDoc(treeId, request.resource.data.inviteCode)).data.role == request.resource.data.role
           && !('usedBy' in get(inviteDoc(treeId, request.resource.data.inviteCode)).data)
           && get(inviteDoc(treeId, request.resource.data.inviteCode)).data.expiresAt > request.time
+          && get(inviteDoc(treeId, request.resource.data.inviteCode)).data.get('replaces', null)
+               == request.resource.data.get('replaces', null)
           && getAfter(inviteDoc(treeId, request.resource.data.inviteCode)).data.usedBy == request.auth.uid;
 
         // An admin decides. Approving also adds the member, in the same batch.
@@ -443,7 +462,11 @@ service cloud.firestore {
           && request.resource.data.status in ['approved', 'rejected']
           && request.resource.data.reviewedBy == request.auth.uid
           && request.resource.data.reviewedAt == request.time
-          && (request.resource.data.status == 'rejected' || existsAfter(memberDoc(treeId, uid)));
+          && (request.resource.data.status == 'rejected' || existsAfter(memberDoc(treeId, uid)))
+          // A recovery takes the old member out in the same batch: the old login loses access.
+          && (request.resource.data.status == 'rejected'
+              || !('replaces' in resource.data)
+              || !existsAfter(memberDoc(treeId, resource.data.replaces)));
 
         allow delete: if isSelf(uid) || isReviewer(treeId);
       }

@@ -57,6 +57,8 @@ export interface JoinRequest {
   role: 'reviewer' | 'contributor';
   status: 'pending' | 'approved' | 'rejected';
   personId?: string;
+  /** Set when this is a recovery: the old member this account will replace. */
+  replaces?: string;
 }
 
 export interface Invite {

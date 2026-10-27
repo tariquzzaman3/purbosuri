@@ -10,7 +10,7 @@ import { useTree } from './TreeContext';
 type Loaded =
   | { state: 'loading' }
   | { state: 'invalid' | 'used' | 'expired' }
-  | { state: 'ok'; role: 'reviewer' | 'contributor'; treeName: string };
+  | { state: 'ok'; role: 'reviewer' | 'contributor'; treeName: string; replaces?: string };
 
 /** Where an invitation link lands: read the invitation, ask who you are, send it for approval. */
 export function JoinPage() {
@@ -43,7 +43,12 @@ export function JoinPage() {
         if (d.usedBy) return setInvite({ state: 'used' });
         const expires: Date | undefined = d.expiresAt?.toDate?.();
         if (expires && expires.getTime() < Date.now()) return setInvite({ state: 'expired' });
-        setInvite({ state: 'ok', role: d.role, treeName: String(d.treeName ?? '') });
+        setInvite({
+          state: 'ok',
+          role: d.role,
+          treeName: String(d.treeName ?? ''),
+          replaces: typeof d.replaces === 'string' ? d.replaces : undefined,
+        });
       } catch {
         if (live) setInvite({ state: 'invalid' });
       }
@@ -111,6 +116,7 @@ export function JoinPage() {
       <p className="muted small">
         {t('joinAs')}: {invite.role === 'reviewer' ? t('roleReviewer') : t('roleContributor')}
       </p>
+      {invite.replaces && <p className="banner warn">{t('joinRecovery')}</p>}
       <p className="muted">{t('joinWhy')}</p>
 
       <form onSubmit={(e) => void submit(e)} noValidate>

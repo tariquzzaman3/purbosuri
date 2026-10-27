@@ -22,6 +22,20 @@ export const reportBn = {
   rpMarkSeen: 'দেখা হয়েছে',
   rpMarkSolved: 'সমাধান হয়েছে',
   rpFailed: 'পাঠানো যায়নি। আবার চেষ্টা করুন।',
+
+  rcvButton: 'ইমেইল হারিয়েছেন? পুনরুদ্ধার লিংক',
+  rcvTitle: 'পুনরুদ্ধারের লিংক',
+  rcvExplain: 'এই সদস্য ইমেইল হারিয়ে ফেললে তাঁকে এই লিংক দিন। নতুন ইমেইলে একাউন্ট খুলে লিংকটি খুললে আপনি যাচাই করে অনুমোদন দিলে নতুন একাউন্ট আগের ভূমিকা ও অবস্থান পাবে, আর পুরনো একাউন্ট আর ঢুকতে পারবে না।',
+  rcvMake: 'লিংক বানান',
+  rcvCopy: 'লিংক কপি করুন',
+  rcvCopied: 'কপি হয়েছে',
+  rcvFailed: 'লিংক বানানো যায়নি।',
+  rcvManagerNote: 'ব্যবস্থাপকের একাউন্ট এভাবে বদলানো যায় না। ব্যবস্থাপক আগে কাউকে দায়িত্ব দিয়ে নিন।',
+  joinRecovery: 'এটি পুনরুদ্ধারের লিংক। অনুমোদন হলে এই একাউন্ট আপনার আগের একাউন্টের জায়গা নেবে এবং আগের একাউন্ট আর কাজ করবে না।',
+  reqRecovery: 'পুনরুদ্ধারের অনুরোধ',
+  reqReplaces: 'যার জায়গা নেবেন',
+  reqReplaceHint: 'অনুমোদন দিলে এই একাউন্ট ওই সদস্যের ভূমিকা ও অবস্থান পাবে এবং পুরনো একাউন্ট বাদ যাবে। অনুমোদনের আগে ফোন বা সরাসরি যাচাই করুন।',
+  reqReplaceConfirm: 'এই একাউন্টকে নতুন একাউন্ট হিসেবে অনুমোদন দিন',
 };
 
 export const reportEn: typeof reportBn = {
@@ -46,4 +60,18 @@ export const reportEn: typeof reportBn = {
   rpMarkSeen: 'Mark seen',
   rpMarkSolved: 'Mark solved',
   rpFailed: 'Could not send. Please try again.',
+
+  rcvButton: 'Lost their email? Recovery link',
+  rcvTitle: 'Recovery link',
+  rcvExplain: 'If this member lost their email, give them this link. They open an account with a new email and open the link. When you approve after checking, the new account gets the old role and place, and the old account can no longer get in.',
+  rcvMake: 'Make link',
+  rcvCopy: 'Copy link',
+  rcvCopied: 'Copied',
+  rcvFailed: 'Could not make the link.',
+  rcvManagerNote: 'The manager’s account cannot be replaced this way. The manager should first hand over to someone.',
+  joinRecovery: 'This is a recovery link. When approved, this account takes the place of your old account, and the old account stops working.',
+  reqRecovery: 'Recovery request',
+  reqReplaces: 'Takes the place of',
+  reqReplaceHint: 'On approval this account gets that member’s role and place and the old account is removed. Check by phone or in person before approving.',
+  reqReplaceConfirm: 'Approve this account as the replacement',
 };

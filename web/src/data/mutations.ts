@@ -2,6 +2,7 @@ import {
   Timestamp,
   collection,
   deleteField,
+  getDoc,
   getDocs,
   setDoc,
   doc,
@@ -254,6 +255,7 @@ export async function createInvite(
   treeName: string,
   role: 'reviewer' | 'contributor',
   days: number = DEFAULT_INVITE_DAYS,
+  replaces?: string,
 ): Promise<string> {
   const d = database();
   const ref = doc(collection(d, 'trees', treeId, 'invites'));
@@ -263,6 +265,7 @@ export async function createInvite(
     createdBy: uid,
     createdAt: serverTimestamp(),
     expiresAt: Timestamp.fromMillis(Date.now() + days * 24 * 3600 * 1000),
+    ...(replaces ? { replaces } : {}),
   });
   return ref.id;
 }
@@ -287,7 +290,7 @@ export async function submitJoin(
   treeId: string,
   uid: string,
   code: string,
-  invite: { role: 'reviewer' | 'contributor'; treeName: string },
+  invite: { role: 'reviewer' | 'contributor'; treeName: string; replaces?: string },
   form: JoinForm,
 ): Promise<void> {
   const d = database();
@@ -302,6 +305,7 @@ export async function submitJoin(
     }),
     inviteCode: code,
     role: invite.role,
+    ...(invite.replaces ? { replaces: invite.replaces } : {}),
     status: 'pending',
     createdAt: serverTimestamp(),
   });
@@ -377,6 +381,40 @@ export async function approveJoin(treeId: string, adminUid: string, req: JoinReq
   });
   await batch.commit();
   return personId;
+}
+
+/**
+ * Recovery after a lost email: the new account takes over the old member's role and place in
+ * the tree, and the old member is removed in the same batch so the old login no longer works.
+ */
+export async function approveReplacement(treeId: string, adminUid: string, req: JoinRequest): Promise<void> {
+  if (!req.replaces) throw new Error('not-a-recovery');
+  const d = database();
+  const oldRef = doc(d, 'trees', treeId, 'members', req.replaces);
+  const old = await getDoc(oldRef);
+  if (!old.exists()) throw new Error('gone');
+  const personId: string | undefined = old.data().personId;
+  const batch = writeBatch(d);
+  batch.set(doc(d, 'trees', treeId, 'members', req.uid), {
+    role: old.data().role,
+    displayName: req.displayName.slice(0, 100),
+    joinedAt: serverTimestamp(),
+    ...(personId ? { personId } : {}),
+  });
+  batch.delete(oldRef);
+  if (personId) {
+    const contact = clean({ ...(req.contact ?? {}), contactOf: req.contactOf });
+    if (Object.keys(contact).length > 0) {
+      batch.set(doc(d, 'trees', treeId, 'people', personId, 'private', 'contact'), contact, { merge: true });
+    }
+  }
+  batch.update(doc(d, 'trees', treeId, 'joinRequests', req.uid), {
+    status: 'approved',
+    reviewedBy: adminUid,
+    reviewedAt: serverTimestamp(),
+    ...(personId ? { personId } : {}),
+  });
+  await batch.commit();
 }
 
 export async function rejectJoin(treeId: string, adminUid: string, uid: string): Promise<void> {
