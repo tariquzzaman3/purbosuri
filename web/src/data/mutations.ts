@@ -1,6 +1,7 @@
 import {
   Timestamp,
   collection,
+  deleteDoc,
   deleteField,
   getDoc,
   getDocs,
@@ -13,7 +14,7 @@ import {
   type Firestore,
 } from 'firebase/firestore';
 import { db } from '../firebase';
-import type { Contact, JoinRequest, Person, PersonFields, RelKind, RelStatus, RelType, Relationship, TreeSettings } from './types';
+import type { Contact, FlexDate, JoinRequest, Person, PersonFields, RelKind, RelStatus, RelType, Relationship, TreeSettings } from './types';
 
 function database(): Firestore {
   if (!db) throw new Error('not-configured');
@@ -719,4 +720,70 @@ export async function rejectProposal(treeId: string, adminUid: string, id: strin
     reviewedBy: adminUid,
     reviewedAt: serverTimestamp(),
   });
+}
+
+export interface MemoryFields {
+  title?: string;
+  body: string;
+  personIds: string[];
+  date?: FlexDate;
+  place?: string;
+}
+
+function memoryData(f: MemoryFields): Record<string, unknown> {
+  return {
+    ...clean({ title: f.title, place: f.place, date: f.date ? clean({ ...f.date }) : undefined }),
+    body: f.body.trim().slice(0, 50000),
+    personIds: f.personIds.slice(0, 100),
+  };
+}
+
+/** An admin's story is published at once; a participant's waits for an admin. */
+export async function createMemory(
+  treeId: string,
+  uid: string,
+  authorName: string,
+  isAdmin: boolean,
+  fields: MemoryFields,
+): Promise<void> {
+  const d = database();
+  await setDoc(doc(collection(d, 'trees', treeId, 'memories')), {
+    ...memoryData(fields),
+    authorUid: uid,
+    authorName: (authorName || 'Member').slice(0, 100),
+    status: isAdmin ? 'published' : 'pending',
+    createdAt: serverTimestamp(),
+  });
+}
+
+export async function updateMemory(
+  treeId: string,
+  memoryId: string,
+  isAdmin: boolean,
+  fields: MemoryFields,
+): Promise<void> {
+  const d = database();
+  const ref = doc(d, 'trees', treeId, 'memories', memoryId);
+  const m = memoryData(fields);
+  await updateDoc(ref, {
+    title: m.title ?? deleteField(),
+    place: m.place ?? deleteField(),
+    date: m.date ?? deleteField(),
+    body: m.body,
+    personIds: m.personIds,
+    // An author's own edit goes back to waiting; an admin's edit keeps the status.
+    ...(isAdmin ? {} : { status: 'pending' }),
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function approveMemory(treeId: string, memoryId: string): Promise<void> {
+  await updateDoc(doc(database(), 'trees', treeId, 'memories', memoryId), {
+    status: 'published',
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function deleteMemory(treeId: string, memoryId: string): Promise<void> {
+  await deleteDoc(doc(database(), 'trees', treeId, 'memories', memoryId));
 }

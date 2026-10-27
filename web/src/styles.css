@@ -1253,3 +1253,13 @@ fieldset.field legend {
 .rule {
   margin-bottom: 10px;
 }
+
+.memory-body {
+  white-space: pre-wrap;
+}
+
+.people-pick {
+  max-height: 180px;
+  overflow-y: auto;
+  margin-top: 6px;
+}

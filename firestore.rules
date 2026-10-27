@@ -512,10 +512,12 @@ service cloud.firestore {
 
       function validMemory(d) {
         return d.keys().hasOnly([
-            'title', 'body', 'authorUid', 'personIds', 'mediaIds', 'date',
-            'place', 'tags', 'sources', 'createdAt', 'updatedAt'
+            'title', 'body', 'authorUid', 'authorName', 'personIds', 'mediaIds', 'date',
+            'place', 'tags', 'sources', 'status', 'createdAt', 'updatedAt'
           ])
-          && d.keys().hasAll(['body', 'authorUid', 'createdAt'])
+          && d.keys().hasAll(['body', 'authorUid', 'status', 'createdAt'])
+          && d.status in ['published', 'pending']
+          && optString(d, 'authorName', 100)
           && d.body is string
           && d.body.size() <= 50000
           && optString(d, 'title', 300)
@@ -528,22 +530,31 @@ service cloud.firestore {
           && optStamp(d);
       }
 
+      // A participant's story waits for an admin ("pending") and is seen only by its author and
+      // the admins until approved. Admins publish directly.
       match /memories/{memoryId} {
-        allow read: if isMember(treeId);
+        allow read: if isMember(treeId)
+          && (resource.data.status == 'published'
+              || isReviewer(treeId)
+              || resource.data.authorUid == request.auth.uid);
 
         allow create: if canContribute(treeId)
           && validMemory(request.resource.data)
           && request.resource.data.authorUid == request.auth.uid
-          && request.resource.data.createdAt == request.time;
+          && request.resource.data.createdAt == request.time
+          && (request.resource.data.status == 'pending' || isReviewer(treeId));
 
+        // Admins edit and approve. An author's own edit goes back to waiting for approval.
         allow update: if canContribute(treeId)
-          && (resource.data.authorUid == request.auth.uid || isReviewer(treeId))
           && validMemory(request.resource.data)
           && request.resource.data.authorUid == resource.data.authorUid
-          && request.resource.data.createdAt == resource.data.createdAt;
+          && request.resource.data.createdAt == resource.data.createdAt
+          && (isReviewer(treeId)
+              || (resource.data.authorUid == request.auth.uid && request.resource.data.status == 'pending'));
 
         allow delete: if canContribute(treeId)
-          && (resource.data.authorUid == request.auth.uid || isReviewer(treeId));
+          && (isReviewer(treeId)
+              || (resource.data.authorUid == request.auth.uid && resource.data.status == 'pending'));
       }
 
       // ---------- media records (metadata only; files are stored elsewhere) ----------

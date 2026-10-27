@@ -21,6 +21,8 @@ import {
 } from '../data/mutations';
 import type { Person, RelKind, Relationship } from '../data/types';
 import { TreeScreen } from './TreeScreen';
+import { MemoryCard } from './MemoriesPage';
+import { useMemories } from './useMemories';
 import { useTree } from './TreeContext';
 
 const WARNING_KEYS: Record<WarningCode, TKey> = {
@@ -298,6 +300,27 @@ function LinkExisting({ person }: { person: Person }) {
   );
 }
 
+function PersonMemories({ personId }: { personId: string }) {
+  const { t } = useI18n();
+  const { user } = useAuth();
+  const { current, canEdit } = useTree();
+  const { published } = useMemories(current?.id, user?.uid, canEdit);
+  const about = published.filter((m) => m.personIds?.includes(personId));
+  return (
+    <section className="card">
+      <h3>{t('secMemories')}</h3>
+      {about.length === 0 ? (
+        <p className="muted">{t('memEmpty')}</p>
+      ) : (
+        about.map((m) => <MemoryCard key={m.id} m={m} />)
+      )}
+      <Link className="btn small" to="/home/memories">
+        {t('memNew')}
+      </Link>
+    </section>
+  );
+}
+
 function Profile({ person }: { person: Person }) {
   const { t, lang } = useI18n();
   const navigate = useNavigate();
@@ -470,10 +493,7 @@ function Profile({ person }: { person: Person }) {
 
       {canContribute && <LinkExisting person={person} />}
 
-      <section className="card">
-        <h3>{t('secMemories')}</h3>
-        <p className="muted">{t('memoriesLater')}</p>
-      </section>
+      <PersonMemories personId={person.id} />
     </>
   );
 }

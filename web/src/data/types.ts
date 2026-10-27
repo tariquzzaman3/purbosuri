@@ -97,3 +97,16 @@ export interface TreeRef {
 
 /** The editable fields of a person, as the form handles them. */
 export type PersonFields = Omit<Person, 'id' | 'createdBy' | 'publicContact'>;
+
+export interface Memory {
+  id: string;
+  title?: string;
+  body: string;
+  authorUid: string;
+  authorName?: string;
+  personIds?: string[];
+  date?: FlexDate;
+  place?: string;
+  status: 'published' | 'pending';
+  createdAt?: Date;
+}
