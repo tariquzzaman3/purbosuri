@@ -10,7 +10,11 @@ import {
   Timestamp,
   deleteDoc,
   doc,
+  collection,
   getDoc,
+  getDocs,
+  query,
+  where,
   serverTimestamp,
   setDoc,
   updateDoc,
@@ -219,11 +223,11 @@ describe('creating trees and membership', () => {
     }
   });
 
-  it('only the owner can add members, and never as another owner', async () => {
+  it('nobody can be added to a tree without an approved join request', async () => {
     const member = (role: string) => ({ role, displayName: 'Eve', joinedAt: serverTimestamp() });
-    await assertSucceeds(setDoc(doc(db('alice'), 'trees/treeA/members/eve'), member('contributor')));
-    await assertFails(setDoc(doc(db('alice'), 'trees/treeA/members/eve2'), member('owner')));
+    await assertFails(setDoc(doc(db('alice'), 'trees/treeA/members/eve'), member('contributor')));
     await assertFails(setDoc(doc(db('rita'), 'trees/treeA/members/eve3'), member('viewer')));
+    await assertFails(setDoc(doc(db('alice'), 'trees/treeA/members/eve2'), member('owner')));
   });
 
   it('a contributor cannot promote themselves', async () => {
@@ -391,6 +395,207 @@ describe('roles: who sees whom, and who can change what', () => {
   });
 });
 
+describe('invitations, join requests and approval', () => {
+  const week = () => Timestamp.fromMillis(Date.now() + 7 * 24 * 3600 * 1000);
+  const invite = (role = 'contributor') => ({
+    role,
+    treeName: 'Tree A',
+    createdBy: 'rita',
+    createdAt: serverTimestamp(),
+    expiresAt: week(),
+  });
+
+  const seedInvite = async (code: string, extra: Record<string, unknown> = {}, role = 'contributor') => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `trees/treeA/invites/${code}`), {
+        role,
+        treeName: 'Tree A',
+        createdBy: 'rita',
+        createdAt: Timestamp.now(),
+        expiresAt: week(),
+        ...extra,
+      });
+    });
+  };
+
+  /** What a newcomer sends: the join request and the use of the invitation, in one batch. */
+  const join = (uid: string, code: string, role = 'contributor') => {
+    const d = db(uid);
+    const batch = writeBatch(d);
+    batch.set(doc(d, `trees/treeA/joinRequests/${uid}`), {
+      displayName: 'Dina',
+      fatherName: 'Abdul Karim',
+      motherName: 'Rahima',
+      contact: { phone: '01711000000' },
+      contactOf: 'father',
+      inviteCode: code,
+      role,
+      status: 'pending',
+      createdAt: serverTimestamp(),
+    });
+    batch.update(doc(d, `trees/treeA/invites/${code}`), { usedBy: uid, usedAt: serverTimestamp() });
+    batch.set(doc(d, `users/${uid}/pending/treeA`), { treeName: 'Tree A', requestedAt: serverTimestamp() });
+    return batch.commit();
+  };
+
+  const approve = (by: string, uid: string, role = 'contributor') => {
+    const d = db(by);
+    const batch = writeBatch(d);
+    batch.update(doc(d, `trees/treeA/joinRequests/${uid}`), {
+      status: 'approved',
+      reviewedBy: by,
+      reviewedAt: serverTimestamp(),
+      personId: 'p1',
+    });
+    batch.set(doc(d, `trees/treeA/members/${uid}`), {
+      role,
+      displayName: 'Dina',
+      joinedAt: serverTimestamp(),
+      personId: 'p1',
+    });
+    return batch.commit();
+  };
+
+  it('admins and the manager can invite; participants only when the manager allows it', async () => {
+    await assertSucceeds(setDoc(doc(db('rita'), 'trees/treeA/invites/c1'), invite()));
+    await assertSucceeds(setDoc(doc(db('alice'), 'trees/treeA/invites/c2'), { ...invite(), createdBy: 'alice' }));
+    await assertFails(setDoc(doc(db('carl'), 'trees/treeA/invites/c3'), { ...invite(), createdBy: 'carl' }));
+    await assertFails(setDoc(doc(db('dina'), 'trees/treeA/invites/c4'), { ...invite(), createdBy: 'dina' }));
+
+    await assertSucceeds(
+      updateDoc(doc(db('alice'), 'trees/treeA'), { settings: { participantsCanInvite: true } }),
+    );
+    await assertSucceeds(setDoc(doc(db('carl'), 'trees/treeA/invites/c3'), { ...invite(), createdBy: 'carl' }));
+    // ...but a participant can still not invite someone as an admin.
+    await assertFails(
+      setDoc(doc(db('carl'), 'trees/treeA/invites/c5'), { ...invite('reviewer'), createdBy: 'carl' }),
+    );
+  });
+
+  it('an invitation must expire within thirty days and name the right creator', async () => {
+    const far = Timestamp.fromMillis(Date.now() + 40 * 24 * 3600 * 1000);
+    const past = Timestamp.fromMillis(Date.now() - 1000);
+    await assertFails(setDoc(doc(db('rita'), 'trees/treeA/invites/c1'), { ...invite(), expiresAt: far }));
+    await assertFails(setDoc(doc(db('rita'), 'trees/treeA/invites/c2'), { ...invite(), expiresAt: past }));
+    await assertFails(setDoc(doc(db('rita'), 'trees/treeA/invites/c3'), { ...invite(), createdBy: 'alice' }));
+  });
+
+  it('anyone signed in can open one invitation by its code, but only admins can list them', async () => {
+    await seedInvite('abc');
+    await assertSucceeds(getDoc(doc(db('dina'), 'trees/treeA/invites/abc')));
+    await assertFails(getDoc(doc(anon(), 'trees/treeA/invites/abc')));
+    await assertFails(getDocs(collection(db('dina'), 'trees/treeA/invites')));
+    await assertSucceeds(getDocs(collection(db('rita'), 'trees/treeA/invites')));
+  });
+
+  it('a newcomer can send a join request with a valid invitation, once', async () => {
+    await seedInvite('abc');
+    await assertSucceeds(join('dina', 'abc'));
+    // The same invitation cannot be used again.
+    await assertFails(join('eve', 'abc'));
+  });
+
+  it('a join request is refused for an expired invitation, a wrong role, or an unused-link trick', async () => {
+    await seedInvite('old', { expiresAt: Timestamp.fromMillis(Date.now() - 1000) });
+    await assertFails(join('dina', 'old'));
+    await seedInvite('abc');
+    await assertFails(join('dina', 'abc', 'reviewer')); // asks for more than was offered
+    await assertFails(join('dina', 'nosuchcode'));
+  });
+
+  it('only the newcomer and the admins can read a join request', async () => {
+    await seedInvite('abc');
+    await join('dina', 'abc');
+    await assertSucceeds(getDoc(doc(db('dina'), 'trees/treeA/joinRequests/dina')));
+    await assertSucceeds(getDoc(doc(db('rita'), 'trees/treeA/joinRequests/dina')));
+    await assertSucceeds(getDoc(doc(db('alice'), 'trees/treeA/joinRequests/dina')));
+    await assertFails(getDoc(doc(db('carl'), 'trees/treeA/joinRequests/dina')));
+    await assertFails(getDoc(doc(db('bob'), 'trees/treeA/joinRequests/dina')));
+  });
+
+  it('an admin approves: the member is added in the same batch, in the offered role', async () => {
+    await seedInvite('abc');
+    await join('dina', 'abc');
+    await assertSucceeds(approve('rita', 'dina'));
+    await assertSucceeds(getDoc(doc(db('dina'), 'trees/treeA')));
+    // A participant sees the tree but nothing about roles.
+    await assertFails(getDoc(doc(db('dina'), 'trees/treeA/members/rita')));
+  });
+
+  it('approval cannot hand out a bigger role, skip the request, or come from a participant', async () => {
+    await seedInvite('abc');
+    await join('dina', 'abc');
+    await assertFails(approve('rita', 'dina', 'reviewer')); // request asked for participant
+    await assertFails(approve('carl', 'dina'));
+    // Adding a member without touching the join request is refused.
+    await assertFails(
+      setDoc(doc(db('rita'), 'trees/treeA/members/dina'), {
+        role: 'contributor',
+        displayName: 'Dina',
+        joinedAt: serverTimestamp(),
+      }),
+    );
+  });
+
+  it('an admin can turn a request down, and then nothing is added', async () => {
+    await seedInvite('abc');
+    await join('dina', 'abc');
+    await assertSucceeds(
+      updateDoc(doc(db('rita'), 'trees/treeA/joinRequests/dina'), {
+        status: 'rejected',
+        reviewedBy: 'rita',
+        reviewedAt: serverTimestamp(),
+      }),
+    );
+    await assertFails(getDoc(doc(db('dina'), 'trees/treeA')));
+  });
+
+  it('after approval the newcomer can put the tree in their list and clear the waiting note', async () => {
+    await seedInvite('abc');
+    await join('dina', 'abc');
+    await approve('rita', 'dina');
+    const d = db('dina');
+    const batch = writeBatch(d);
+    listTree(d, 'dina', 'treeA', 1, batch);
+    batch.delete(doc(d, 'users/dina/pending/treeA'));
+    await assertSucceeds(batch.commit());
+  });
+
+  it('nobody can fake a waiting note without a join request', async () => {
+    await assertFails(
+      setDoc(doc(db('dina'), 'users/dina/pending/treeA'), { treeName: 'Tree A', requestedAt: serverTimestamp() }),
+    );
+  });
+
+  it('a member shows or hides their own contact details, and can change nothing else', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), 'trees/treeA/members/carl'), { personId: 'p1' });
+    });
+    const ref = doc(db('carl'), 'trees/treeA/people/p1');
+    await assertSucceeds(
+      updateDoc(ref, { publicContact: { phone: '01700000000' }, updatedAt: serverTimestamp() }),
+    );
+    await assertFails(updateDoc(ref, { nameEn: 'Changed', updatedAt: serverTimestamp() }));
+    await assertFails(updateDoc(ref, { publicContact: { secret: 'x' }, updatedAt: serverTimestamp() }));
+    // Someone not linked to this person cannot.
+    await assertFails(
+      updateDoc(doc(db('vera'), 'trees/treeA/people/p1'), { publicContact: { phone: '1' }, updatedAt: serverTimestamp() }),
+    );
+  });
+
+  it('an admin can change who may invite participants; only the manager changes the rest', async () => {
+    await assertSucceeds(
+      updateDoc(doc(db('rita'), 'trees/treeA'), { settings: { participantsCanInvite: true } }),
+    );
+    await assertFails(updateDoc(doc(db('rita'), 'trees/treeA'), { settings: { adminsCanInvite: false } }));
+    await assertFails(updateDoc(doc(db('carl'), 'trees/treeA'), { settings: { participantsCanInvite: true } }));
+    await assertSucceeds(updateDoc(doc(db('alice'), 'trees/treeA'), { settings: { adminsCanInvite: false } }));
+    // With admins switched off from inviting, an admin cannot create one, but the manager can.
+    await assertFails(setDoc(doc(db('rita'), 'trees/treeA/invites/c1'), invite()));
+    await assertSucceeds(setDoc(doc(db('alice'), 'trees/treeA/invites/c2'), { ...invite(), createdBy: 'alice' }));
+  });
+});
+
 describe('people and relationships', () => {
   const newPerson = (uid: string) => ({
     nameBn: 'নতুন',
@@ -398,8 +603,21 @@ describe('people and relationships', () => {
     createdAt: serverTimestamp(),
   });
 
-  it('a contributor can add a person with almost no information', async () => {
-    await assertSucceeds(setDoc(doc(db('carl'), 'trees/treeA/people/p2'), newPerson('carl')));
+  it('an admin can add a person with almost no information', async () => {
+    await assertSucceeds(setDoc(doc(db('rita'), 'trees/treeA/people/p2'), newPerson('rita')));
+  });
+
+  it('a participant cannot add a person or a relationship directly (they propose it)', async () => {
+    await assertFails(setDoc(doc(db('carl'), 'trees/treeA/people/p2'), newPerson('carl')));
+    await assertFails(
+      setDoc(doc(db('carl'), 'trees/treeA/relationships/r1'), {
+        personA: 'p1',
+        personB: 'p2',
+        type: 'parent',
+        createdBy: 'carl',
+        createdAt: serverTimestamp(),
+      }),
+    );
   });
 
   it('a viewer cannot add a person', async () => {
@@ -430,24 +648,24 @@ describe('people and relationships', () => {
 
   it('unknown fields are rejected', async () => {
     await assertFails(
-      setDoc(doc(db('carl'), 'trees/treeA/people/p2'), { ...newPerson('carl'), isAdmin: true }),
+      setDoc(doc(db('rita'), 'trees/treeA/people/p2'), { ...newPerson('rita'), isAdmin: true }),
     );
   });
 
   it('accepts a birth order from 1 to 30 and rejects anything else', async () => {
-    const ref = (id: string) => doc(db('carl'), `trees/treeA/people/${id}`);
-    await assertSucceeds(setDoc(ref('o1'), { ...newPerson('carl'), birthOrder: 1 }));
-    await assertSucceeds(setDoc(ref('o2'), { ...newPerson('carl'), birthOrder: 30 }));
-    await assertFails(setDoc(ref('o3'), { ...newPerson('carl'), birthOrder: 0 }));
-    await assertFails(setDoc(ref('o4'), { ...newPerson('carl'), birthOrder: 31 }));
-    await assertFails(setDoc(ref('o5'), { ...newPerson('carl'), birthOrder: 1.5 }));
-    await assertFails(setDoc(ref('o6'), { ...newPerson('carl'), birthOrder: 'first' }));
+    const ref = (id: string) => doc(db('rita'), `trees/treeA/people/${id}`);
+    await assertSucceeds(setDoc(ref('o1'), { ...newPerson('rita'), birthOrder: 1 }));
+    await assertSucceeds(setDoc(ref('o2'), { ...newPerson('rita'), birthOrder: 30 }));
+    await assertFails(setDoc(ref('o3'), { ...newPerson('rita'), birthOrder: 0 }));
+    await assertFails(setDoc(ref('o4'), { ...newPerson('rita'), birthOrder: 31 }));
+    await assertFails(setDoc(ref('o5'), { ...newPerson('rita'), birthOrder: 1.5 }));
+    await assertFails(setDoc(ref('o6'), { ...newPerson('rita'), birthOrder: 'first' }));
   });
 
   it('approximate and uncertain information is accepted', async () => {
     await assertSucceeds(
-      setDoc(doc(db('carl'), 'trees/treeA/people/p3'), {
-        ...newPerson('carl'),
+      setDoc(doc(db('rita'), 'trees/treeA/people/p3'), {
+        ...newPerson('rita'),
         birth: { year: 1920, precision: 'approximate' },
         verification: 'estimated',
         living: false,
@@ -464,13 +682,13 @@ describe('people and relationships', () => {
   it('adoptive, step and foster relationships are valid', async () => {
     for (const kind of ['biological', 'adoptive', 'step', 'foster', 'unknown']) {
       await assertSucceeds(
-        setDoc(doc(db('carl'), `trees/treeA/relationships/r-${kind}`), {
+        setDoc(doc(db('rita'), `trees/treeA/relationships/r-${kind}`), {
           personA: 'p1',
           personB: 'p2',
           type: 'parent',
           kind,
           status: 'confirmed',
-          createdBy: 'carl',
+          createdBy: 'rita',
           createdAt: serverTimestamp(),
         }),
       );
@@ -479,11 +697,11 @@ describe('people and relationships', () => {
 
   it('a person cannot be related to themselves', async () => {
     await assertFails(
-      setDoc(doc(db('carl'), 'trees/treeA/relationships/self'), {
+      setDoc(doc(db('rita'), 'trees/treeA/relationships/self'), {
         personA: 'p1',
         personB: 'p1',
         type: 'spouse',
-        createdBy: 'carl',
+        createdBy: 'rita',
         createdAt: serverTimestamp(),
       }),
     );
@@ -604,6 +822,106 @@ describe('proposals, votes and review', () => {
     );
     await assertFails(updateDoc(ref, { text: 'edited' }));
     await assertFails(deleteDoc(ref));
+  });
+});
+
+describe('suggestions from participants', () => {
+  const suggestion = (uid: string, kind: string, extra: Record<string, unknown> = {}) => ({
+    kind,
+    targetType: 'person',
+    targetId: 'p1',
+    targetName: 'Abdul Karim',
+    proposerName: uid,
+    reason: 'Name on the certificate',
+    payload: { changes: { nameEn: 'Abdul Karim Sarker' } },
+    status: 'pending',
+    proposedBy: uid,
+    createdAt: serverTimestamp(),
+    ...extra,
+  });
+
+  it('a participant can suggest adding, editing and removing', async () => {
+    for (const kind of ['addPerson', 'editPerson', 'deletePerson', 'addRelation', 'removeRelation']) {
+      await assertSucceeds(setDoc(doc(db('carl'), `trees/treeA/proposals/s-${kind}`), suggestion('carl', kind)));
+    }
+    await assertFails(setDoc(doc(db('carl'), 'trees/treeA/proposals/bad'), suggestion('carl', 'takeOver')));
+  });
+
+  it('a participant cannot suggest in the name of someone else, or already approved', async () => {
+    await assertFails(setDoc(doc(db('carl'), 'trees/treeA/proposals/x1'), suggestion('rita', 'editPerson')));
+    await assertFails(setDoc(doc(db('carl'), 'trees/treeA/proposals/x2'), suggestion('carl', 'editPerson', { status: 'approved' })));
+  });
+
+  it('admins see every suggestion; a participant sees only their own', async () => {
+    await assertSucceeds(getDoc(doc(db('rita'), 'trees/treeA/proposals/byCarl')));
+    await assertSucceeds(getDoc(doc(db('alice'), 'trees/treeA/proposals/byRita')));
+    await assertSucceeds(getDoc(doc(db('carl'), 'trees/treeA/proposals/byCarl')));
+    await assertFails(getDoc(doc(db('carl'), 'trees/treeA/proposals/byRita')));
+    await assertFails(getDoc(doc(db('vera'), 'trees/treeA/proposals/byCarl')));
+    await assertFails(getDoc(doc(db('bob'), 'trees/treeA/proposals/byCarl')));
+  });
+
+  it('a participant can list their own suggestions but not everyone’s', async () => {
+    const col = collection(db('carl'), 'trees/treeA/proposals');
+    await assertSucceeds(getDocs(query(col, where('proposedBy', '==', 'carl'))));
+    await assertFails(getDocs(col));
+  });
+});
+
+describe('messages to the admin team', () => {
+  const report = (uid: string, extra: Record<string, unknown> = {}) => ({
+    text: 'Something is wrong',
+    category: 'problem',
+    reporterUid: uid,
+    reporterName: uid,
+    status: 'open',
+    createdAt: serverTimestamp(),
+    ...extra,
+  });
+
+  it('any member can write, but only as themselves and as open', async () => {
+    await assertSucceeds(setDoc(doc(db('carl'), 'trees/treeA/reports/r1'), report('carl')));
+    await assertSucceeds(setDoc(doc(db('vera'), 'trees/treeA/reports/r2'), report('vera')));
+    await assertFails(setDoc(doc(db('carl'), 'trees/treeA/reports/r3'), report('rita')));
+    await assertFails(setDoc(doc(db('carl'), 'trees/treeA/reports/r4'), report('carl', { status: 'solved' })));
+    await assertFails(setDoc(doc(db('bob'), 'trees/treeA/reports/r5'), report('bob')));
+  });
+
+  it('admins read all; a member reads only their own', async () => {
+    await setDoc(doc(db('carl'), 'trees/treeA/reports/r6'), report('carl'));
+    await assertSucceeds(getDoc(doc(db('rita'), 'trees/treeA/reports/r6')));
+    await assertSucceeds(getDoc(doc(db('alice'), 'trees/treeA/reports/r6')));
+    await assertSucceeds(getDoc(doc(db('carl'), 'trees/treeA/reports/r6')));
+    await assertFails(getDoc(doc(db('vera'), 'trees/treeA/reports/r6')));
+  });
+
+  it('only admins answer, and only the status and reply change', async () => {
+    await setDoc(doc(db('carl'), 'trees/treeA/reports/r7'), report('carl'));
+    const answer = { status: 'solved', reply: 'Fixed', updatedAt: serverTimestamp() };
+    await assertFails(updateDoc(doc(db('carl'), 'trees/treeA/reports/r7'), answer));
+    await assertFails(updateDoc(doc(db('rita'), 'trees/treeA/reports/r7'), { ...answer, reviewedBy: 'rita' }));
+    await assertSucceeds(updateDoc(doc(db('rita'), 'trees/treeA/reports/r7'), answer));
+  });
+});
+
+describe('invitation validity is a manager switch', () => {
+  it('uses the days the manager set, with a day of slack', async () => {
+    const inDays = (n: number) => Timestamp.fromMillis(Date.now() + n * 24 * 3600 * 1000);
+    const invite = (days: number) => ({
+      role: 'contributor',
+      treeName: 'Tree A',
+      createdBy: 'rita',
+      createdAt: serverTimestamp(),
+      expiresAt: inDays(days),
+    });
+    await assertSucceeds(setDoc(doc(db('rita'), 'trees/treeA/invites/a'), invite(7)));
+    await assertFails(setDoc(doc(db('rita'), 'trees/treeA/invites/b'), invite(10)));
+    await assertSucceeds(updateDoc(doc(db('alice'), 'trees/treeA'), { settings: { inviteDays: 14 } }));
+    await assertSucceeds(setDoc(doc(db('rita'), 'trees/treeA/invites/c'), invite(14)));
+    await assertFails(updateDoc(doc(db('alice'), 'trees/treeA'), { settings: { inviteDays: 31 } }));
+    await assertFails(updateDoc(doc(db('alice'), 'trees/treeA'), { settings: { inviteDays: 0 } }));
+    // Only the manager sets it; an admin cannot.
+    await assertFails(updateDoc(doc(db('rita'), 'trees/treeA'), { settings: { inviteDays: 3 } }));
   });
 });
 

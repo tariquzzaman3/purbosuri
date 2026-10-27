@@ -136,6 +136,18 @@ service cloud.firestore {
       allow delete: if isSelf(uid);
     }
 
+    // Trees a person has asked to join and is waiting to hear back from.
+    match /users/{uid}/pending/{treeId} {
+      allow read, delete: if isSelf(uid);
+      allow create: if isSelf(uid)
+        && request.resource.data.keys().hasOnly(['treeName', 'requestedAt'])
+        && request.resource.data.treeName is string
+        && request.resource.data.treeName.size() <= 120
+        && request.resource.data.requestedAt == request.time
+        && existsAfter(/databases/$(database)/documents/trees/$(treeId)/joinRequests/$(uid));
+      allow update: if false;
+    }
+
     match /users/{uid}/slots/{slot} {
       allow read: if isSelf(uid);
       allow create: if isSelf(uid)
@@ -157,7 +169,34 @@ service cloud.firestore {
         && d.name is string
         && d.name.size() > 0
         && d.name.size() <= 120
-        && optMap(d, 'settings');
+        && optMap(d, 'settings')
+        && (!('settings' in d)
+            || (d.settings.keys().hasOnly(['adminsCanInvite', 'participantsCanInvite', 'inviteDays'])
+                && (!('inviteDays' in d.settings)
+                    || (d.settings.inviteDays is int && d.settings.inviteDays >= 1 && d.settings.inviteDays <= 30))
+                && (!('adminsCanInvite' in d.settings) || d.settings.adminsCanInvite is bool)
+                && (!('participantsCanInvite' in d.settings) || d.settings.participantsCanInvite is bool)));
+    }
+
+    // What the manager has switched on for this tree (missing means the default).
+    function treeSetting(treeId, key, fallback) {
+      return get(/databases/$(database)/documents/trees/$(treeId)).data.get('settings', {}).get(key, fallback);
+    }
+
+    // Who may create an invitation, and for which role.
+    function canInvite(treeId, role) {
+      return isOwner(treeId)
+        || (isReviewer(treeId) && treeSetting(treeId, 'adminsCanInvite', true) == true)
+        || (canContribute(treeId) && role == 'contributor'
+            && treeSetting(treeId, 'participantsCanInvite', false) == true);
+    }
+
+    function inviteDoc(treeId, code) {
+      return /databases/$(database)/documents/trees/$(treeId)/invites/$(code);
+    }
+
+    function joinDoc(treeId, uid) {
+      return /databases/$(database)/documents/trees/$(treeId)/joinRequests/$(uid);
     }
 
     match /trees/{treeId} {
@@ -182,6 +221,13 @@ service cloud.firestore {
                 && getAfter(memberDoc(treeId, request.resource.data.ownerUid)).data.role == 'owner'
                 && getAfter(memberDoc(treeId, request.auth.uid)).data.role in ['reviewer', 'contributor']));
 
+      // An admin can change the "participants can invite" switch, nothing else.
+      allow update: if isReviewer(treeId)
+        && validTree(request.resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['settings'])
+        && request.resource.data.get('settings', {}).diff(resource.data.get('settings', {}))
+             .affectedKeys().hasOnly(['participantsCanInvite']);
+
       // Deleting a tree document does not delete its subcollections.
       // A full tree deletion is done by the client, collection by collection.
       allow delete: if isOwner(treeId);
@@ -189,11 +235,12 @@ service cloud.firestore {
       // ---------- members ----------
 
       function validMember(d) {
-        return d.keys().hasOnly(['role', 'displayName', 'joinedAt'])
+        return d.keys().hasOnly(['role', 'displayName', 'joinedAt', 'personId'])
           && d.keys().hasAll(['role', 'displayName', 'joinedAt'])
           && d.role in ['owner', 'reviewer', 'contributor', 'viewer']
           && d.displayName is string
-          && d.displayName.size() <= 100;
+          && d.displayName.size() <= 100
+          && optString(d, 'personId', 100);
       }
 
       match /members/{memberUid} {
@@ -208,12 +255,16 @@ service cloud.firestore {
           && request.resource.data.joinedAt == request.time
           && getAfter(/databases/$(database)/documents/trees/$(treeId)).data.ownerUid == request.auth.uid;
 
-        // The owner adds other people. Nobody else becomes an owner.
-        allow create: if isOwner(treeId)
+        // Someone joins only when an admin approves their join request, in the same batch,
+        // and only in the role the invitation offered. Nobody else becomes a manager.
+        allow create: if isReviewer(treeId)
           && memberUid != request.auth.uid
           && validMember(request.resource.data)
-          && request.resource.data.role != 'owner'
-          && request.resource.data.joinedAt == request.time;
+          && request.resource.data.role in ['reviewer', 'contributor']
+          && request.resource.data.joinedAt == request.time
+          && get(joinDoc(treeId, memberUid)).data.status == 'pending'
+          && getAfter(joinDoc(treeId, memberUid)).data.status == 'approved'
+          && request.resource.data.role == get(joinDoc(treeId, memberUid)).data.role;
 
         // Manager and admins can make someone else an admin or a participant. The manager's
         // own role is never touched this way.
@@ -260,7 +311,7 @@ service cloud.firestore {
         return d.keys().hasOnly([
             'nameBn', 'nameEn', 'nickname', 'altNames', 'birth', 'birthOrder', 'death',
             'birthPlace', 'residence', 'deathPlace', 'occupation', 'bio',
-            'photoMediaId', 'living', 'verification',
+            'photoMediaId', 'living', 'verification', 'publicContact',
             'createdBy', 'createdAt', 'updatedAt'
           ])
           && d.keys().hasAll(['createdBy', 'createdAt'])
@@ -277,6 +328,9 @@ service cloud.firestore {
           && optString(d, 'occupation', 300)
           && optString(d, 'bio', 10000)
           && optString(d, 'photoMediaId', 100)
+          && (!('publicContact' in d)
+              || (d.publicContact is map
+                  && d.publicContact.keys().hasOnly(['phone', 'facebook', 'email'])))
           && (!('living' in d) || d.living is bool)
           && (!('verification' in d)
               || d.verification in ['documented', 'recollection', 'estimated', 'disputed', 'unverified'])
@@ -286,7 +340,9 @@ service cloud.firestore {
       match /people/{personId} {
         allow read: if isMember(treeId);
 
-        allow create: if canContribute(treeId)
+        // Only the manager and admins add people. A participant proposes it, and an admin
+        // approves (which is when the person is written here).
+        allow create: if isReviewer(treeId)
           && validPerson(request.resource.data)
           && request.resource.data.createdBy == request.auth.uid
           && request.resource.data.createdAt == request.time;
@@ -297,12 +353,99 @@ service cloud.firestore {
           && request.resource.data.createdBy == resource.data.createdBy
           && request.resource.data.createdAt == resource.data.createdAt;
 
+        // A member can show or hide their own contact details, and change nothing else.
+        allow update: if isMember(treeId)
+          && get(memberDoc(treeId, request.auth.uid)).data.get('personId', '') == personId
+          && validPerson(request.resource.data)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['publicContact', 'updatedAt']);
+
         allow delete: if isReviewer(treeId);
 
         // Phone, email and other contact details: owner and reviewers only.
         match /private/{docId} {
           allow read, write: if isReviewer(treeId);
         }
+      }
+
+      // ---------- invitations ----------
+      // The invitation code is the document id: long and random, so it cannot be guessed.
+      // Anyone signed in who has the link can read that one invitation, but nobody can list them
+      // except the manager and admins.
+
+      match /invites/{code} {
+        allow get: if signedIn();
+        allow list: if isReviewer(treeId);
+
+        allow create: if request.resource.data.keys().hasOnly(
+              ['role', 'treeName', 'createdBy', 'createdAt', 'expiresAt'])
+          && request.resource.data.role in ['reviewer', 'contributor']
+          && request.resource.data.treeName is string
+          && request.resource.data.treeName.size() <= 120
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.expiresAt is timestamp
+          && request.resource.data.expiresAt > request.time
+          && request.resource.data.expiresAt <= request.time + duration.value(treeSetting(treeId, 'inviteDays', 7) + 1, 'd')
+          && canInvite(treeId, request.resource.data.role);
+
+        // Used once, in the same batch as the join request that uses it.
+        allow update: if signedIn()
+          && !('usedBy' in resource.data)
+          && resource.data.expiresAt > request.time
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['usedBy', 'usedAt'])
+          && request.resource.data.usedBy == request.auth.uid
+          && request.resource.data.usedAt == request.time
+          && existsAfter(joinDoc(treeId, request.auth.uid));
+
+        allow delete: if isReviewer(treeId) || (resource.data.createdBy == request.auth.uid && canContribute(treeId));
+      }
+
+      // ---------- join requests ----------
+      // What a newcomer tells the admins so they can check who they are. Contact details here
+      // are seen by the person and the admins only.
+
+      function validJoin(d) {
+        return d.keys().hasOnly([
+            'displayName', 'fatherName', 'motherName', 'contact', 'contactOf',
+            'inviteCode', 'role', 'status', 'createdAt', 'reviewedBy', 'reviewedAt', 'personId'
+          ])
+          && d.keys().hasAll(['displayName', 'inviteCode', 'role', 'status', 'createdAt'])
+          && d.displayName is string && d.displayName.size() > 0 && d.displayName.size() <= 100
+          && optString(d, 'fatherName', 100)
+          && optString(d, 'motherName', 100)
+          && (!('contactOf' in d) || d.contactOf in ['self', 'father', 'mother', 'other'])
+          && (!('contact' in d)
+              || (d.contact is map && d.contact.keys().hasOnly(['phone', 'facebook', 'email'])))
+          && d.inviteCode is string
+          && d.role in ['reviewer', 'contributor'];
+      }
+
+      match /joinRequests/{uid} {
+        allow read: if isSelf(uid) || isReviewer(treeId);
+
+        allow create: if isSelf(uid)
+          && !isMember(treeId)
+          && validJoin(request.resource.data)
+          && request.resource.data.status == 'pending'
+          && request.resource.data.createdAt == request.time
+          && !('reviewedBy' in request.resource.data)
+          && get(inviteDoc(treeId, request.resource.data.inviteCode)).data.role == request.resource.data.role
+          && !('usedBy' in get(inviteDoc(treeId, request.resource.data.inviteCode)).data)
+          && get(inviteDoc(treeId, request.resource.data.inviteCode)).data.expiresAt > request.time
+          && getAfter(inviteDoc(treeId, request.resource.data.inviteCode)).data.usedBy == request.auth.uid;
+
+        // An admin decides. Approving also adds the member, in the same batch.
+        allow update: if isReviewer(treeId)
+          && uid != request.auth.uid
+          && resource.data.status == 'pending'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+               ['status', 'reviewedBy', 'reviewedAt', 'personId'])
+          && request.resource.data.status in ['approved', 'rejected']
+          && request.resource.data.reviewedBy == request.auth.uid
+          && request.resource.data.reviewedAt == request.time
+          && (request.resource.data.status == 'rejected' || existsAfter(memberDoc(treeId, uid)));
+
+        allow delete: if isSelf(uid) || isReviewer(treeId);
       }
 
       // ---------- relationships ----------
@@ -329,7 +472,7 @@ service cloud.firestore {
       match /relationships/{relId} {
         allow read: if isMember(treeId);
 
-        allow create: if canContribute(treeId)
+        allow create: if isReviewer(treeId)
           && validRelationship(request.resource.data)
           && request.resource.data.createdBy == request.auth.uid
           && request.resource.data.createdAt == request.time;
@@ -422,16 +565,56 @@ service cloud.firestore {
 
       // ---------- edit proposals, comments and votes ----------
 
+      // A participant's suggestion to add, change or remove a person or a relationship.
+      // `kind` says which, `payload` holds the details. The admin team sees every suggestion
+      // and its author; a participant sees only their own.
+      match /reports/{reportId} {
+        allow read: if isReviewer(treeId)
+          || (isMember(treeId) && resource.data.reporterUid == request.auth.uid);
+
+        // Any member can write to the admin team. The sender is known to the admins.
+        allow create: if isMember(treeId)
+          && request.resource.data.keys().hasOnly(
+               ['text', 'category', 'reporterUid', 'reporterName', 'status', 'createdAt'])
+          && request.resource.data.keys().hasAll(['text', 'category', 'reporterUid', 'status', 'createdAt'])
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 5000
+          && request.resource.data.category in ['problem', 'contact']
+          && optString(request.resource.data, 'reporterName', 100)
+          && request.resource.data.reporterUid == request.auth.uid
+          && request.resource.data.status == 'open'
+          && request.resource.data.createdAt == request.time;
+
+        // Admins answer as "Admin team": no admin id is stored on the report.
+        allow update: if isReviewer(treeId)
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['status', 'reply', 'updatedAt'])
+          && request.resource.data.status in ['open', 'seen', 'solved']
+          && optString(request.resource.data, 'reply', 2000)
+          && request.resource.data.updatedAt == request.time;
+
+        allow delete: if false;
+      }
+
       match /proposals/{proposalId} {
-        allow read: if isMember(treeId);
+        allow read: if isReviewer(treeId) || (isMember(treeId) && resource.data.proposedBy == request.auth.uid);
 
         allow create: if canContribute(treeId)
           && request.resource.data.keys().hasOnly([
                'targetType', 'targetId', 'field', 'oldValue', 'newValue',
-               'reason', 'evidenceIds', 'status', 'proposedBy', 'createdAt'
+               'reason', 'evidenceIds', 'status', 'proposedBy', 'createdAt',
+               'kind', 'payload', 'proposerName', 'targetName'
              ])
           && request.resource.data.keys().hasAll(
                ['targetType', 'targetId', 'reason', 'status', 'proposedBy', 'createdAt'])
+          && (!('kind' in request.resource.data)
+              || request.resource.data.kind in
+                   ['addPerson', 'editPerson', 'deletePerson', 'addRelation', 'removeRelation'])
+          && (!('payload' in request.resource.data)
+              || (request.resource.data.payload is map && request.resource.data.payload.keys().size() <= 40))
+          && optString(request.resource.data, 'proposerName', 100)
+          && optString(request.resource.data, 'targetName', 200)
           && request.resource.data.targetType in ['person', 'relationship', 'memory', 'media']
           && request.resource.data.targetId is string
           && request.resource.data.reason is string

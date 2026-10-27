@@ -1204,3 +1204,52 @@ fieldset.field legend {
 .install .card {
   margin-top: 14px;
 }
+
+/* ---------- Invitations, requests, small bits ---------- */
+.count-badge {
+  display: inline-block;
+  min-width: 1.4rem;
+  margin-left: 8px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+.radio {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+}
+
+.invite-link {
+  word-break: break-all;
+  font-family: ui-monospace, monospace;
+  font-size: 0.85rem;
+  background: var(--bg);
+  padding: 8px 10px;
+  border-radius: 8px;
+  margin: 0 0 10px;
+}
+
+.approve-box select[size] {
+  width: 100%;
+}
+
+.inline-input {
+  min-height: 40px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1.5px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  max-width: 100%;
+}
+
+.rule {
+  margin-bottom: 10px;
+}

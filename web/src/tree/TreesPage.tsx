@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth';
 import { useI18n } from '../i18n';
 import { num } from '../data/format';
-import { MAX_TREES, deleteTree, removeFromMyList, removeMember, renameTree } from '../data/mutations';
+import { MAX_TREES, deleteTree, dismissPending, removeFromMyList, removeMember, renameTree } from '../data/mutations';
 import type { TreeRef } from '../data/types';
 import { CreateTree } from './CreateTree';
 import { useTree } from './TreeContext';
@@ -153,7 +153,7 @@ function TreeItem({ tree, mine }: { tree: TreeRef; mine: boolean }) {
 export function TreesPage() {
   const { t, lang } = useI18n();
   const { user } = useAuth();
-  const { trees, treesLoaded, nextSlot } = useTree();
+  const { trees, treesLoaded, nextSlot, pending } = useTree();
   const [creating, setCreating] = useState(false);
   const atLimit = nextSlot === null;
 
@@ -177,6 +177,35 @@ export function TreesPage() {
         <button className="btn primary" type="button" onClick={() => setCreating(true)}>
           + {t('treeNewButton')}
         </button>
+      )}
+
+      {pending.length > 0 && (
+        <section>
+          <h3>{t('pendTitle')}</h3>
+          <ul className="tree-list">
+            {pending.map((p) => (
+              <li key={p.treeId} className="tree-item">
+                <div className="tree-item-head">
+                  <strong>{p.treeName}</strong>
+                  <span className="badge">
+                    {p.status === 'waiting' ? t('pendWaiting') : p.status === 'full' ? t('pendFull') : t('pendRejected')}
+                  </span>
+                </div>
+                {p.status === 'rejected' && user && (
+                  <div className="tree-item-actions">
+                    <button
+                      type="button"
+                      className="btn small"
+                      onClick={() => void dismissPending(user.uid, p.treeId).catch(() => undefined)}
+                    >
+                      {t('pendDismiss')}
+                    </button>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       <ul className="tree-list">

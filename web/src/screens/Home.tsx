@@ -11,6 +11,12 @@ import { CreateTree } from '../tree/CreateTree';
 import { TreesPage } from '../tree/TreesPage';
 import { MembersPage } from '../tree/MembersPage';
 import { InstallPage } from './InstallPage';
+import { InvitePage } from '../tree/InvitePage';
+import { RequestsPage } from '../tree/RequestsPage';
+import { JoinPage } from '../tree/JoinPage';
+import { ApprovalsPage } from '../tree/ApprovalsPage';
+import { RulesPage } from '../tree/RulesPage';
+import { ReportsPage } from '../tree/ReportsPage';
 import { SettingsPage } from './Settings';
 import { AboutPage, PrivacyPage } from './InfoPages';
 
@@ -64,6 +70,12 @@ export function Home() {
             <Route path="trees" element={<TreesPage />} />
             <Route path="members" element={<MembersPage />} />
             <Route path="install" element={<InstallPage />} />
+            <Route path="invite" element={<InvitePage />} />
+            <Route path="requests" element={<RequestsPage />} />
+            <Route path="approvals" element={<ApprovalsPage />} />
+            <Route path="rules" element={<RulesPage />} />
+            <Route path="report" element={<ReportsPage />} />
+            <Route path="join/:treeId/:code" element={<JoinPage />} />
             <Route path="settings" element={<SettingsPage />} />
             <Route path="about" element={<AboutPage />} />
             <Route path="privacy" element={<PrivacyPage />} />
