@@ -118,6 +118,11 @@ export function MenuButton() {
               {t('menuMembers')}
             </Link>
           )}
+          {role && (
+            <Link className="menu-item" to="/home/report" onClick={close}>
+              {t('menuReport')}
+            </Link>
+          )}
           <Link className="menu-item" to="/home/install" onClick={close}>
             {t('menuInstall')}
           </Link>

@@ -423,6 +423,50 @@ export async function savePublicContact(treeId: string, personId: string, contac
 
 export type ProposalKind = 'addPerson' | 'editPerson' | 'deletePerson' | 'addRelation' | 'removeRelation';
 
+export interface Report {
+  id: string;
+  text: string;
+  category: 'problem' | 'contact';
+  reporterUid: string;
+  reporterName?: string;
+  status: 'open' | 'seen' | 'solved';
+  reply?: string;
+  createdAt?: Date;
+}
+
+/** A message to the tree's admin team (managers and admins). Replies never name an admin. */
+export async function submitReport(
+  treeId: string,
+  uid: string,
+  name: string,
+  category: Report['category'],
+  text: string,
+): Promise<void> {
+  const d = database();
+  await setDoc(doc(collection(d, 'trees', treeId, 'reports')), {
+    text: text.trim().slice(0, 5000),
+    category,
+    reporterUid: uid,
+    reporterName: (name || 'Member').slice(0, 100),
+    status: 'open',
+    createdAt: serverTimestamp(),
+  });
+}
+
+export async function answerReport(
+  treeId: string,
+  reportId: string,
+  status: Report['status'],
+  reply: string,
+): Promise<void> {
+  const d = database();
+  await updateDoc(doc(d, 'trees', treeId, 'reports', reportId), {
+    status,
+    reply: reply.trim().slice(0, 2000),
+    updatedAt: serverTimestamp(),
+  });
+}
+
 export interface Proposal {
   id: string;
   kind: ProposalKind;

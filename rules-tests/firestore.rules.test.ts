@@ -868,6 +868,42 @@ describe('suggestions from participants', () => {
   });
 });
 
+describe('messages to the admin team', () => {
+  const report = (uid: string, extra: Record<string, unknown> = {}) => ({
+    text: 'Something is wrong',
+    category: 'problem',
+    reporterUid: uid,
+    reporterName: uid,
+    status: 'open',
+    createdAt: serverTimestamp(),
+    ...extra,
+  });
+
+  it('any member can write, but only as themselves and as open', async () => {
+    await assertSucceeds(setDoc(doc(db('carl'), 'trees/treeA/reports/r1'), report('carl')));
+    await assertSucceeds(setDoc(doc(db('vera'), 'trees/treeA/reports/r2'), report('vera')));
+    await assertFails(setDoc(doc(db('carl'), 'trees/treeA/reports/r3'), report('rita')));
+    await assertFails(setDoc(doc(db('carl'), 'trees/treeA/reports/r4'), report('carl', { status: 'solved' })));
+    await assertFails(setDoc(doc(db('bob'), 'trees/treeA/reports/r5'), report('bob')));
+  });
+
+  it('admins read all; a member reads only their own', async () => {
+    await setDoc(doc(db('carl'), 'trees/treeA/reports/r6'), report('carl'));
+    await assertSucceeds(getDoc(doc(db('rita'), 'trees/treeA/reports/r6')));
+    await assertSucceeds(getDoc(doc(db('alice'), 'trees/treeA/reports/r6')));
+    await assertSucceeds(getDoc(doc(db('carl'), 'trees/treeA/reports/r6')));
+    await assertFails(getDoc(doc(db('vera'), 'trees/treeA/reports/r6')));
+  });
+
+  it('only admins answer, and only the status and reply change', async () => {
+    await setDoc(doc(db('carl'), 'trees/treeA/reports/r7'), report('carl'));
+    const answer = { status: 'solved', reply: 'Fixed', updatedAt: serverTimestamp() };
+    await assertFails(updateDoc(doc(db('carl'), 'trees/treeA/reports/r7'), answer));
+    await assertFails(updateDoc(doc(db('rita'), 'trees/treeA/reports/r7'), { ...answer, reviewedBy: 'rita' }));
+    await assertSucceeds(updateDoc(doc(db('rita'), 'trees/treeA/reports/r7'), answer));
+  });
+});
+
 describe('invitation validity is a manager switch', () => {
   it('uses the days the manager set, with a day of slack', async () => {
     const inDays = (n: number) => Timestamp.fromMillis(Date.now() + n * 24 * 3600 * 1000);

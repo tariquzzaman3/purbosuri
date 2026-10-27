@@ -568,6 +568,35 @@ service cloud.firestore {
       // A participant's suggestion to add, change or remove a person or a relationship.
       // `kind` says which, `payload` holds the details. The admin team sees every suggestion
       // and its author; a participant sees only their own.
+      match /reports/{reportId} {
+        allow read: if isReviewer(treeId)
+          || (isMember(treeId) && resource.data.reporterUid == request.auth.uid);
+
+        // Any member can write to the admin team. The sender is known to the admins.
+        allow create: if isMember(treeId)
+          && request.resource.data.keys().hasOnly(
+               ['text', 'category', 'reporterUid', 'reporterName', 'status', 'createdAt'])
+          && request.resource.data.keys().hasAll(['text', 'category', 'reporterUid', 'status', 'createdAt'])
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 5000
+          && request.resource.data.category in ['problem', 'contact']
+          && optString(request.resource.data, 'reporterName', 100)
+          && request.resource.data.reporterUid == request.auth.uid
+          && request.resource.data.status == 'open'
+          && request.resource.data.createdAt == request.time;
+
+        // Admins answer as "Admin team": no admin id is stored on the report.
+        allow update: if isReviewer(treeId)
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['status', 'reply', 'updatedAt'])
+          && request.resource.data.status in ['open', 'seen', 'solved']
+          && optString(request.resource.data, 'reply', 2000)
+          && request.resource.data.updatedAt == request.time;
+
+        allow delete: if false;
+      }
+
       match /proposals/{proposalId} {
         allow read: if isReviewer(treeId) || (isMember(treeId) && resource.data.proposedBy == request.auth.uid);
 
