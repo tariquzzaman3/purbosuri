@@ -1,8 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../firebase';
 import { useAuth } from '../auth';
 import { useI18n } from '../i18n';
 import { personName } from '../data/format';
-import { approveJoin, rejectJoin } from '../data/mutations';
+import { approveJoin, approveReplacement, rejectJoin } from '../data/mutations';
 import type { JoinRequest } from '../data/types';
 import { useTree } from './TreeContext';
 
@@ -57,10 +59,31 @@ function RequestCard({ req }: { req: JoinRequest }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const treeId = current?.id;
+  const [replacedName, setReplacedName] = useState('');
+  useEffect(() => {
+    if (!db || !treeId || !req.replaces) return;
+    let live = true;
+    getDoc(doc(db, 'trees', treeId, 'members', req.replaces))
+      .then((s) => live && setReplacedName(s.exists() ? String(s.data().displayName ?? '') : ''))
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [treeId, req.replaces]);
 
   const approve = async () => {
     if (!user || !treeId) return;
     setError(null);
+    if (req.replaces) {
+      setBusy(true);
+      try {
+        await approveReplacement(treeId, user.uid, req);
+      } catch {
+        setError(t('errReq'));
+        setBusy(false);
+      }
+      return;
+    }
     let plan: Parameters<typeof approveJoin>[3];
     if (how === 'link') {
       if (!linkId) return setError(t('errReqPick'));
@@ -103,7 +126,13 @@ function RequestCard({ req }: { req: JoinRequest }) {
       <div className="tree-item-head">
         <strong>{req.displayName}</strong>
         <span className="badge role">{req.role === 'reviewer' ? t('roleReviewer') : t('roleContributor')}</span>
+        {req.replaces && <span className="badge">{t('reqRecovery')}</span>}
       </div>
+      {req.replaces && (
+        <p className="muted small">
+          {t('reqReplaces')}: {replacedName || '—'}. {t('reqReplaceHint')}
+        </p>
+      )}
       <dl className="details">
         {req.fatherName && (
           <div>
@@ -127,7 +156,17 @@ function RequestCard({ req }: { req: JoinRequest }) {
         </div>
       </dl>
 
-      {!open ? (
+      {req.replaces ? (
+        <div className="tree-item-actions">
+          {error && <p className="msg error">{error}</p>}
+          <button type="button" className="btn primary small" disabled={busy} onClick={() => void approve()}>
+            {t('reqReplaceConfirm')}
+          </button>
+          <button type="button" className="btn danger small" disabled={busy} onClick={() => void reject()}>
+            {t('reqReject')}
+          </button>
+        </div>
+      ) : !open ? (
         <div className="tree-item-actions">
           <button type="button" className="btn primary small" onClick={() => setOpen(true)}>
             {t('reqApprove')}

@@ -596,6 +596,89 @@ describe('invitations, join requests and approval', () => {
   });
 });
 
+describe('recovery after a lost email', () => {
+  const week = () => Timestamp.fromMillis(Date.now() + 7 * 24 * 3600 * 1000);
+  const recoveryInvite = (by: string, replaces: string, role: string) => ({
+    role,
+    treeName: 'Tree A',
+    createdBy: by,
+    createdAt: serverTimestamp(),
+    expiresAt: week(),
+    replaces,
+  });
+
+  const seed = async (code: string, replaces: string, role: string) => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `trees/treeA/invites/${code}`), {
+        role,
+        treeName: 'Tree A',
+        createdBy: 'alice',
+        createdAt: Timestamp.now(),
+        expiresAt: week(),
+        replaces,
+      });
+    });
+  };
+
+  const join = (uid: string, code: string, role: string, replaces?: string) => {
+    const d = db(uid);
+    const batch = writeBatch(d);
+    batch.set(doc(d, `trees/treeA/joinRequests/${uid}`), {
+      displayName: 'Carl (new mail)',
+      contact: { phone: '01711000000' },
+      contactOf: 'self',
+      inviteCode: code,
+      role,
+      ...(replaces ? { replaces } : {}),
+      status: 'pending',
+      createdAt: serverTimestamp(),
+    });
+    batch.update(doc(d, `trees/treeA/invites/${code}`), { usedBy: uid, usedAt: serverTimestamp() });
+    batch.set(doc(d, `users/${uid}/pending/treeA`), { treeName: 'Tree A', requestedAt: serverTimestamp() });
+    return batch.commit();
+  };
+
+  const replace = (by: string, uid: string, oldUid: string, role: string, keepOld = false) => {
+    const d = db(by);
+    const batch = writeBatch(d);
+    batch.update(doc(d, `trees/treeA/joinRequests/${uid}`), {
+      status: 'approved',
+      reviewedBy: by,
+      reviewedAt: serverTimestamp(),
+    });
+    batch.set(doc(d, `trees/treeA/members/${uid}`), { role, displayName: 'Carl (new mail)', joinedAt: serverTimestamp() });
+    if (!keepOld) batch.delete(doc(d, `trees/treeA/members/${oldUid}`));
+    return batch.commit();
+  };
+
+  it('the manager can make a recovery invitation for anyone; an admin only for participants', async () => {
+    await assertSucceeds(setDoc(doc(db('alice'), 'trees/treeA/invites/k1'), recoveryInvite('alice', 'rita', 'reviewer')));
+    await assertSucceeds(setDoc(doc(db('rita'), 'trees/treeA/invites/k2'), recoveryInvite('rita', 'carl', 'contributor')));
+    await assertFails(setDoc(doc(db('rita'), 'trees/treeA/invites/k3'), recoveryInvite('rita', 'alice', 'reviewer')));
+    await assertFails(setDoc(doc(db('carl'), 'trees/treeA/invites/k4'), recoveryInvite('carl', 'carl', 'contributor')));
+  });
+
+  it('the role must match the member being replaced', async () => {
+    await assertFails(setDoc(doc(db('alice'), 'trees/treeA/invites/k5'), recoveryInvite('alice', 'carl', 'reviewer')));
+    await assertFails(setDoc(doc(db('alice'), 'trees/treeA/invites/k6'), recoveryInvite('alice', 'nobody', 'contributor')));
+  });
+
+  it('on approval the new account takes the old place and the old account loses access', async () => {
+    await seed('rc', 'carl', 'contributor');
+    await join('dina', 'rc', 'contributor', 'carl');
+    await assertFails(replace('rita', 'dina', 'carl', 'contributor', true)); // the old member must go in the same batch
+    await assertSucceeds(replace('rita', 'dina', 'carl', 'contributor'));
+    await assertSucceeds(getDoc(doc(db('dina'), 'trees/treeA')));
+    await assertFails(getDoc(doc(db('carl'), 'trees/treeA')));
+  });
+
+  it('a join request cannot claim to replace someone the invitation did not name', async () => {
+    await seed('rc2', 'carl', 'contributor');
+    await assertFails(join('dina', 'rc2', 'contributor', 'vera'));
+    await assertFails(join('dina', 'rc2', 'contributor'));
+  });
+});
+
 describe('people and relationships', () => {
   const newPerson = (uid: string) => ({
     nameBn: 'নতুন',

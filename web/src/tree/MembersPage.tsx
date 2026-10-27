@@ -4,7 +4,7 @@ import { useAuth } from '../auth';
 import { db } from '../firebase';
 import { useI18n } from '../i18n';
 import { ROLE_KEYS } from '../data/labels';
-import { removeMember, setMemberRole, stepDown, transferManager } from '../data/mutations';
+import { createInvite, removeMember, setMemberRole, stepDown, transferManager } from '../data/mutations';
 import type { Role } from '../data/types';
 import { useTree } from './TreeContext';
 
@@ -19,8 +19,9 @@ const ORDER: Record<Role, number> = { owner: 0, reviewer: 1, contributor: 2, vie
 function MemberRow({ member, treeId }: { member: Member; treeId: string }) {
   const { t } = useI18n();
   const { user } = useAuth();
-  const { role: myRole } = useTree();
-  const [mode, setMode] = useState<'view' | 'remove' | 'transfer'>('view');
+  const { role: myRole, current, settings } = useTree();
+  const [recoveryLink, setRecoveryLink] = useState<string | null>(null);
+  const [mode, setMode] = useState<'view' | 'remove' | 'transfer' | 'recover'>('view');
   const [myNewRole, setMyNewRole] = useState<'reviewer' | 'contributor'>('reviewer');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -28,6 +29,30 @@ function MemberRow({ member, treeId }: { member: Member; treeId: string }) {
   const isMe = member.uid === user?.uid;
   const isManager = member.role === 'owner';
   const iAmManager = myRole === 'owner';
+
+  const canRecover =
+    !isMe && !isManager && member.role !== 'viewer' && (myRole === 'owner' || member.role === 'contributor');
+
+  const makeRecovery = async () => {
+    if (!user || !current) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const code = await createInvite(
+        treeId,
+        user.uid,
+        current.name,
+        member.role as 'reviewer' | 'contributor',
+        settings.inviteDays ?? 7,
+        member.uid,
+      );
+      setRecoveryLink(`${window.location.origin}/join/${treeId}/${code}`);
+    } catch {
+      setError(t('rcvFailed'));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const run = async (action: () => Promise<void>) => {
     setBusy(true);
@@ -72,6 +97,11 @@ function MemberRow({ member, treeId }: { member: Member; treeId: string }) {
               {t('memberMakeManager')}
             </button>
           )}
+          {canRecover && (
+            <button type="button" className="btn small" onClick={() => setMode('recover')}>
+              {t('rcvButton')}
+            </button>
+          )}
           {!isMe && (
             <button type="button" className="btn danger small" onClick={() => setMode('remove')}>
               {t('memberRemove')}
@@ -82,6 +112,39 @@ function MemberRow({ member, treeId }: { member: Member; treeId: string }) {
               {t('memberStepDown')}
             </button>
           )}
+        </div>
+      )}
+
+      {mode === 'recover' && (
+        <div className="danger-box">
+          <h3>{t('rcvTitle')}</h3>
+          <p>{t('rcvExplain')}</p>
+          {recoveryLink ? (
+            <>
+              <input type="text" readOnly value={recoveryLink} onFocus={(e) => e.currentTarget.select()} />
+              <button
+                type="button"
+                className="btn small"
+                onClick={() => void navigator.clipboard?.writeText(recoveryLink)}
+              >
+                {t('rcvCopy')}
+              </button>
+            </>
+          ) : (
+            <button type="button" className="btn primary small" disabled={busy} onClick={() => void makeRecovery()}>
+              {t('rcvMake')}
+            </button>
+          )}
+          <button
+            className="btn small"
+            type="button"
+            onClick={() => {
+              setMode('view');
+              setRecoveryLink(null);
+            }}
+          >
+            {t('mCancel')}
+          </button>
         </div>
       )}
 
