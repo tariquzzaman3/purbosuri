@@ -13,6 +13,7 @@ import { memberBn, memberEn, menuBn, menuEn } from './i18n-menu';
 import { inviteBn, inviteEn } from './i18n-invite';
 import { approvalBn, approvalEn } from './i18n-approvals';
 import { reportBn, reportEn } from './i18n-reports';
+import { memoriesBn, memoriesEn } from './i18n-memories';
 
 export type Lang = 'bn' | 'en';
 
@@ -98,6 +99,7 @@ const bn = {
   ...inviteBn,
   ...approvalBn,
   ...reportBn,
+  ...memoriesBn,
 };
 
 const en: typeof bn = {
@@ -181,6 +183,7 @@ const en: typeof bn = {
   ...inviteEn,
   ...approvalEn,
   ...reportEn,
+  ...memoriesEn,
 };
 
 export type TKey = keyof typeof bn;

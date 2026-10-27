@@ -103,6 +103,16 @@ export function MenuButton() {
             </Link>
           )}
           {role && (
+            <Link className="menu-item" to="/home/memories" onClick={close}>
+              {t('menuMemories')}
+            </Link>
+          )}
+          {role && (
+            <Link className="menu-item" to="/home/calendar" onClick={close}>
+              {t('menuCalendar')}
+            </Link>
+          )}
+          {role && (
             <Link className="menu-item" to="/home/approvals" onClick={close}>
               {canEdit ? t('menuApprovals') : t('menuMySuggestions')}
               {canEdit && proposals.length > 0 && <span className="count-badge">{proposals.length}</span>}

@@ -17,6 +17,8 @@ import { JoinPage } from '../tree/JoinPage';
 import { ApprovalsPage } from '../tree/ApprovalsPage';
 import { RulesPage } from '../tree/RulesPage';
 import { ReportsPage } from '../tree/ReportsPage';
+import { MemoriesPage } from '../tree/MemoriesPage';
+import { CalendarPage } from '../tree/CalendarPage';
 import { SettingsPage } from './Settings';
 import { AboutPage, PrivacyPage } from './InfoPages';
 
@@ -75,6 +77,8 @@ export function Home() {
             <Route path="approvals" element={<ApprovalsPage />} />
             <Route path="rules" element={<RulesPage />} />
             <Route path="report" element={<ReportsPage />} />
+            <Route path="memories" element={<MemoriesPage />} />
+            <Route path="calendar" element={<CalendarPage />} />
             <Route path="join/:treeId/:code" element={<JoinPage />} />
             <Route path="settings" element={<SettingsPage />} />
             <Route path="about" element={<AboutPage />} />

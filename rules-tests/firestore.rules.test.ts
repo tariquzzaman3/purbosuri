@@ -957,43 +957,71 @@ describe('audit log', () => {
 });
 
 describe('memories', () => {
-  const story = (uid: string) => ({
+  const story = (uid: string, status = 'pending') => ({
     title: 'ঈদের স্মৃতি',
     body: 'দাদুর সঙ্গে ঈদের দিনের গল্প।',
     authorUid: uid,
+    authorName: uid,
     personIds: ['p1'],
+    status,
     createdAt: serverTimestamp(),
   });
 
-  it('a contributor can write a story linked to several people', async () => {
+  const seed = async (id: string, uid: string, status: string) => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `trees/treeA/memories/${id}`), {
+        ...story(uid, status),
+        createdAt: Timestamp.now(),
+      });
+    });
+  };
+
+  it('a participant writes a story that waits; only an admin publishes directly', async () => {
     await assertSucceeds(
-      setDoc(doc(db('carl'), 'trees/treeA/memories/m1'), {
-        ...story('carl'),
-        personIds: ['p1', 'p2', 'p3'],
-      }),
+      setDoc(doc(db('carl'), 'trees/treeA/memories/m1'), { ...story('carl'), personIds: ['p1', 'p2', 'p3'] }),
     );
+    await assertFails(setDoc(doc(db('carl'), 'trees/treeA/memories/m1b'), story('carl', 'published')));
+    await assertSucceeds(setDoc(doc(db('rita'), 'trees/treeA/memories/m1c'), story('rita', 'published')));
   });
 
   it('a story cannot claim another person as its author', async () => {
     await assertFails(setDoc(doc(db('carl'), 'trees/treeA/memories/m2'), story('alice')));
   });
 
-  it('only the author or a reviewer can edit a story', async () => {
-    await env.withSecurityRulesDisabled(async (ctx) => {
-      await setDoc(doc(ctx.firestore(), 'trees/treeA/memories/m3'), {
-        ...story('carl'),
-        createdAt: Timestamp.now(),
-      });
-    });
+  it('waiting stories are seen only by the author and admins; published ones by all members', async () => {
+    await seed('w1', 'carl', 'pending');
+    await seed('p1x', 'carl', 'published');
+    await assertSucceeds(getDoc(doc(db('carl'), 'trees/treeA/memories/w1')));
+    await assertSucceeds(getDoc(doc(db('rita'), 'trees/treeA/memories/w1')));
+    await assertFails(getDoc(doc(db('vera'), 'trees/treeA/memories/w1')));
+    await assertSucceeds(getDoc(doc(db('vera'), 'trees/treeA/memories/p1x')));
+    await assertFails(getDoc(doc(db('bob'), 'trees/treeA/memories/p1x')));
+  });
+
+  it('the feed can be listed with the published filter', async () => {
+    const col = collection(db('vera'), 'trees/treeA/memories');
+    await assertSucceeds(getDocs(query(col, where('status', '==', 'published'))));
+    await assertFails(getDocs(col));
+  });
+
+  it('only an admin approves; an author’s own edit goes back to waiting', async () => {
+    await seed('w2', 'carl', 'pending');
+    await assertFails(updateDoc(doc(db('carl'), 'trees/treeA/memories/w2'), { status: 'published' }));
+    await assertSucceeds(updateDoc(doc(db('carl'), 'trees/treeA/memories/w2'), { body: 'সংশোধিত' }));
+    await assertSucceeds(updateDoc(doc(db('rita'), 'trees/treeA/memories/w2'), { status: 'published' }));
+    await assertFails(updateDoc(doc(db('carl'), 'trees/treeA/memories/w2'), { body: 'চুপচাপ বদল' }));
     await assertSucceeds(
-      updateDoc(doc(db('carl'), 'trees/treeA/memories/m3'), { body: 'সংশোধিত' }),
+      updateDoc(doc(db('carl'), 'trees/treeA/memories/w2'), { body: 'নতুন', status: 'pending' }),
     );
-    await assertSucceeds(
-      updateDoc(doc(db('rita'), 'trees/treeA/memories/m3'), { body: 'পর্যালোচিত' }),
-    );
-    await assertFails(
-      setDoc(doc(db('vera'), 'trees/treeA/memories/m3'), { ...story('vera') }),
-    );
+  });
+
+  it('a participant can delete only their own waiting story', async () => {
+    await seed('w3', 'carl', 'pending');
+    await seed('p3', 'carl', 'published');
+    await assertFails(deleteDoc(doc(db('vera'), 'trees/treeA/memories/w3')));
+    await assertFails(deleteDoc(doc(db('carl'), 'trees/treeA/memories/p3')));
+    await assertSucceeds(deleteDoc(doc(db('carl'), 'trees/treeA/memories/w3')));
+    await assertSucceeds(deleteDoc(doc(db('rita'), 'trees/treeA/memories/p3')));
   });
 });
 
