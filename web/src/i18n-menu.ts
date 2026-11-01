@@ -81,6 +81,16 @@ export const menuBn = {
     'অ্যাকাউন্ট মুছলে আপনার লগইন ও প্রোফাইল মুছে যায়। বংশধারায় আপনার যোগ করা তথ্য পরিবারের জন্য থেকে যায়।',
   privP6: 'প্রশ্ন বা অনুরোধ থাকলে প্রকল্পের GitHub পাতায় জানান।',
 
+  termsTitle: 'ব্যবহারের শর্ত',
+  termsUpdated: 'সর্বশেষ হালনাগাদ: নভেম্বর ২০২৬ (সংক্ষিপ্ত রূপ)',
+  termsP1: 'পূর্বসূরি একটি বিনামূল্যের অ্যাপ, যেখানে পরিবার নিজেদের বংশধারা ও স্মৃতি একসঙ্গে রাখে। অ্যাপ ব্যবহার করলে আপনি এই শর্তগুলো মেনে নেন।',
+  termsP2: 'আপনি যা যোগ করেন তার দায় আপনার। শুধু সত্য ও পরিবারের জন্য প্রাসঙ্গিক তথ্য দিন। অন্যের সম্মান ক্ষুণ্ণ হয় বা ক্ষতি হয় এমন কিছু, এবং অন্যের ব্যক্তিগত তথ্য তাঁর অনুমতি ছাড়া দেবেন না।',
+  termsP3: 'প্রতিটি বংশধারা ব্যক্তিগত। এর সদস্যরাই শুধু দেখতে পান। ব্যবস্থাপক ও পরিচালকরা সদস্য, ভূমিকা ও অংশগ্রহণকারীদের প্রস্তাব সামলান, এবং সবার ভালোর জন্য নিয়ম বদলাতে বা কাউকে সরাতে পারেন।',
+  termsP4: 'আপনি অন্যের একাউন্ট ব্যবহার করবেন না, অ্যাপের নিরাপত্তা ভাঙার চেষ্টা করবেন না, বা অ্যাপকে স্প্যাম বা অন্যায় কাজে ব্যবহার করবেন না। নিয়ম ভাঙলে একাউন্ট বন্ধ করা হতে পারে।',
+  termsP5: 'অ্যাপটি যেমন আছে তেমন দেওয়া হয়। এটি বিনামূল্যের একটি উদ্যোগ, তাই কোনো সময় বন্ধ বা বদলে যেতে পারে। গুরুত্বপূর্ণ তথ্যের একটি অনুলিপি নিজের কাছেও রাখুন।',
+  termsP6: 'যেকোনো সময় আপনি আপনার একাউন্ট মুছতে পারেন। আপনার যোগ করা পরিবারের তথ্য পরিবারের জন্য থেকে যায়। বিস্তারিত গোপনীয়তা নীতিতে আছে।',
+  termsP7: 'এই শর্ত বদলালে এই পাতায় জানানো হবে। প্রশ্ন থাকলে প্রকল্পের GitHub পাতায় লিখুন।',
+
   verTitle: 'আপনার ইমেইল যাচাই করুন',
   verBody: 'আমরা একটি যাচাইয়ের লিংক পাঠিয়েছি এই ঠিকানায়:',
   verSteps: 'ইমেইলের লিংকে ক্লিক করুন, তারপর এখানে ফিরে "আমি যাচাই করেছি" চাপুন।',
@@ -176,6 +186,16 @@ export const menuEn: typeof menuBn = {
   privP5:
     'If you delete your account, your login and profile are deleted. Information you added to a family tree stays for your family.',
   privP6: 'For questions or requests, please write on the project’s GitHub page.',
+
+  termsTitle: 'Terms of service',
+  termsUpdated: 'Last updated: November 2026 (short version)',
+  termsP1: 'Purbosuri is a free app where families keep their family tree and memories together. By using it you agree to these terms.',
+  termsP2: 'You are responsible for what you add. Add only true information that matters to the family. Do not add anything that harms or disrespects someone, and do not add another person’s private details without their permission.',
+  termsP3: 'Every tree is private; only its members can see it. The manager and admins look after members, roles and participants’ suggestions, and may change the tree’s rules or remove someone for the good of the family.',
+  termsP4: 'Do not use someone else’s account, try to break the app’s security, or use the app for spam or anything unlawful. Accounts that break these rules may be closed.',
+  termsP5: 'The app is provided as it is. It is a free project and may change or stop at any time, so keep your own copy of anything important.',
+  termsP6: 'You can delete your account at any time. Family information you added stays for your family. The privacy policy has the details.',
+  termsP7: 'If these terms change, we will say so on this page. For questions, please write on the project’s GitHub page.',
 
   verTitle: 'Verify your email',
   verBody: 'We sent a verification link to this address:',

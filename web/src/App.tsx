@@ -5,7 +5,7 @@ import { AuthProvider, useAuth } from './auth';
 import { Splash } from './screens/Splash';
 import { Welcome } from './screens/Welcome';
 import { Home } from './screens/Home';
-import { DataDeletionPage, PrivacyPage } from './screens/InfoPages';
+import { DataDeletionPage, PrivacyPage, TermsPage } from './screens/InfoPages';
 import { VerifyEmail } from './screens/VerifyEmail';
 import { SettingsProvider } from './settings';
 
@@ -109,6 +109,7 @@ function Shell() {
       />
       <Route path="/join/:treeId/:code" element={<JoinLink />} />
       <Route path="/privacy" element={<PublicPage><PrivacyPage publicPage /></PublicPage>} />
+      <Route path="/terms" element={<PublicPage><TermsPage /></PublicPage>} />
       <Route path="/data-deletion" element={<PublicPage><DataDeletionPage /></PublicPage>} />
       <Route path="*" element={<Navigate to="/home" replace />} />
     </Routes>

@@ -57,6 +57,30 @@ export function PrivacyPage({ publicPage = false }: { publicPage?: boolean }) {
   );
 }
 
+/** Public (no sign-in needed): the terms of service. */
+export function TermsPage() {
+  const { t } = useI18n();
+  return (
+    <section className="card">
+      <Back publicPage />
+      <h2>{t('termsTitle')}</h2>
+      <p className="muted small">{t('termsUpdated')}</p>
+      <p>{t('termsP1')}</p>
+      <p>{t('termsP2')}</p>
+      <p>{t('termsP3')}</p>
+      <p>{t('termsP4')}</p>
+      <p>{t('termsP5')}</p>
+      <p>{t('termsP6')}</p>
+      <p>
+        {t('termsP7')}{' '}
+        <a href={`${REPO}/issues`} target="_blank" rel="noreferrer">
+          GitHub
+        </a>
+      </p>
+    </section>
+  );
+}
+
 /** Public (no sign-in needed): where Facebook and users find how to delete their data. */
 export function DataDeletionPage() {
   const { t } = useI18n();
