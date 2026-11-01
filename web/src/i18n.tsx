@@ -14,6 +14,7 @@ import { inviteBn, inviteEn } from './i18n-invite';
 import { approvalBn, approvalEn } from './i18n-approvals';
 import { reportBn, reportEn } from './i18n-reports';
 import { memoriesBn, memoriesEn } from './i18n-memories';
+import { legalBn, legalEn } from './i18n-legal';
 
 export type Lang = 'bn' | 'en';
 
@@ -99,6 +100,7 @@ const bn = {
   ...approvalBn,
   ...reportBn,
   ...memoriesBn,
+  ...legalBn,
 };
 
 const en: typeof bn = {
@@ -182,6 +184,7 @@ const en: typeof bn = {
   ...approvalEn,
   ...reportEn,
   ...memoriesEn,
+  ...legalEn,
 };
 
 export type TKey = keyof typeof bn;
