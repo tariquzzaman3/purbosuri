@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from './auth';
 import { Splash } from './screens/Splash';
 import { Welcome } from './screens/Welcome';
 import { Home } from './screens/Home';
+import { DataDeletionPage, PrivacyPage } from './screens/InfoPages';
 import { VerifyEmail } from './screens/VerifyEmail';
 import { SettingsProvider } from './settings';
 
@@ -36,6 +37,15 @@ function takeNext(): string | null {
   } catch {
     return null;
   }
+}
+
+/** A page anyone can open without signing in, such as the privacy policy. */
+function PublicPage({ children }: { children: ReactNode }) {
+  return (
+    <div className="page">
+      <main>{children}</main>
+    </div>
+  );
 }
 
 function PublicOnly({ children }: { children: ReactNode }) {
@@ -98,6 +108,8 @@ function Shell() {
         }
       />
       <Route path="/join/:treeId/:code" element={<JoinLink />} />
+      <Route path="/privacy" element={<PublicPage><PrivacyPage publicPage /></PublicPage>} />
+      <Route path="/data-deletion" element={<PublicPage><DataDeletionPage /></PublicPage>} />
       <Route path="*" element={<Navigate to="/home" replace />} />
     </Routes>
   );
