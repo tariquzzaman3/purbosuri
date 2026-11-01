@@ -17,7 +17,7 @@ const FEATURES: Array<{ title: TKey; desc: TKey }> = [
 
 export function Welcome() {
   const { t } = useI18n();
-  const { configured, register, signIn, signInWithGoogle, signInWithFacebook, resetPassword } = useAuth();
+  const { configured, register, signIn, signInWithGoogle, resetPassword } = useAuth();
 
   const [mode, setMode] = useState<Mode>('signin');
   const [name, setName] = useState('');
@@ -237,16 +237,6 @@ export function Welcome() {
               onClick={() => void run(signInWithGoogle)}
             >
               <span>{t('methodGoogle')}</span>
-            </button>
-
-            {/* 4. Facebook */}
-            <button
-              type="button"
-              className="btn method"
-              disabled={busy}
-              onClick={() => void run(signInWithFacebook)}
-            >
-              <span>{t('methodFacebook')}</span>
             </button>
           </>
         )}
