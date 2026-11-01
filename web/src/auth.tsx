@@ -9,7 +9,6 @@ import {
 } from 'react';
 import {
   EmailAuthProvider,
-  FacebookAuthProvider,
   GoogleAuthProvider,
   createUserWithEmailAndPassword,
   deleteUser,
@@ -43,7 +42,6 @@ interface AuthValue {
   register: (name: string, email: string, password: string) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
-  signInWithFacebook: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   logOut: () => Promise<void>;
   /** True when the person signed up with email and password and has not verified the email yet. */
@@ -167,16 +165,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [ensureProfile]);
 
-  const signInWithFacebook = useCallback(async () => {
-    if (!auth) throw new Error('not-configured');
-    const cred = await signInWithPopup(auth, new FacebookAuthProvider());
-    try {
-      await ensureProfile(cred.user);
-    } catch {
-      // Not fatal.
-    }
-  }, [ensureProfile]);
-
   const sendVerification = useCallback(async () => {
     if (!auth?.currentUser) throw new Error('not-signed-in');
     await sendEmailVerification(auth.currentUser);
@@ -206,8 +194,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (u.providerData.some((p) => p.providerId === 'password') && u.email) {
       await reauthenticateWithCredential(u, EmailAuthProvider.credential(u.email, password ?? ''));
     } else {
-      const id = u.providerData[0]?.providerId;
-      await reauthenticateWithPopup(u, id === 'facebook.com' ? new FacebookAuthProvider() : new GoogleAuthProvider());
+      await reauthenticateWithPopup(u, new GoogleAuthProvider());
     }
     // Remove only the person's private profile and list of trees. Whatever they added
     // to a family tree stays for the family.
@@ -234,7 +221,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       register,
       signIn,
       signInWithGoogle,
-      signInWithFacebook,
       resetPassword,
       logOut,
       needsVerification:
@@ -250,7 +236,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       register,
       signIn,
       signInWithGoogle,
-      signInWithFacebook,
       resetPassword,
       logOut,
       sendVerification,
