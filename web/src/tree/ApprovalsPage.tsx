@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { useAuth } from '../auth';
 import { useI18n, type TKey } from '../i18n';
-import { formatDate, num } from '../data/format';
+import { formatDate, marriageSpan, num } from '../data/format';
 import { VERIFICATION_KEYS } from '../data/labels';
 import { approveProposal, rejectProposal, type Proposal, type ProposalKind } from '../data/mutations';
-import type { FlexDate, Person, Verification } from '../data/types';
+import type { FlexDate, Person, SpouseDates, Verification } from '../data/types';
 import { useTree } from './TreeContext';
 
 const KIND_KEYS: Record<ProposalKind, TKey> = {
@@ -13,6 +13,7 @@ const KIND_KEYS: Record<ProposalKind, TKey> = {
   deletePerson: 'apKindDelete',
   addRelation: 'apKindAddRel',
   removeRelation: 'apKindRemRel',
+  editRelation: 'apKindEditRel',
 };
 
 const FIELD_KEYS: Record<string, TKey> = {
@@ -53,7 +54,7 @@ function StatusBadge({ status }: { status: Proposal['status'] }) {
 
 /** One suggestion, for an admin to look at, correct a name if needed, and approve or reject. */
 function ReviewCard({ p }: { p: Proposal }) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const { user } = useAuth();
   const { current, graph, rels } = useTree();
   const show = useShow();
@@ -65,8 +66,9 @@ function ReviewCard({ p }: { p: Proposal }) {
 
   const payload = p.payload as {
     fields?: Record<string, unknown>;
-    relation?: { existingId: string; as: string };
+    relation?: { existingId: string; as: string; dates?: SpouseDates };
     changes?: Record<string, unknown>;
+    dates?: SpouseDates;
   };
   const before: Person | undefined = p.targetId ? graph.people.get(p.targetId) : undefined;
   const suggested: Record<string, unknown> = p.kind === 'addPerson' ? payload.fields ?? {} : payload.changes ?? {};
@@ -97,6 +99,14 @@ function ReviewCard({ p }: { p: Proposal }) {
     void finish(() => rejectProposal(treeId, user.uid, p.id, note));
   };
 
+  const marriageLabels = {
+    married: t('spouseMarried'),
+    divorce: t('spouseDivorce'),
+    separation: t('spouseSeparation'),
+    death: t('spouseDeathOf'),
+    approx: t('fApprox'),
+  };
+  const datesText = marriageSpan(payload.dates ?? payload.relation?.dates ?? {}, lang, marriageLabels);
   const nameRows = Object.keys(suggested).filter((k) => NAME_FIELDS.includes(k));
   const otherRows = Object.keys(suggested).filter((k) => !NAME_FIELDS.includes(k));
   const relTarget = payload.relation ? graph.people.get(payload.relation.existingId) : undefined;
@@ -153,6 +163,7 @@ function ReviewCard({ p }: { p: Proposal }) {
         </dl>
       )}
       {nameRows.length > 0 && <p className="muted small">{t('apCorrectHint')}</p>}
+      {datesText && <p className="small">{datesText}</p>}
       {p.kind === 'deletePerson' && <p className="msg error">{t('apDeleteWarn')}</p>}
 
       <label className="field">

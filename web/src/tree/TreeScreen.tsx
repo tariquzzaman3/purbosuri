@@ -44,7 +44,15 @@ function EmptyPeople() {
  * Shared frame for every family tree screen: loads the tree, handles the
  * "no tree yet", loading and error states, and shows the header.
  */
-export function TreeScreen({ children, allowEmpty = false }: { children: ReactNode; allowEmpty?: boolean }) {
+export function TreeScreen({
+  children,
+  allowEmpty = false,
+  fab = true,
+}: {
+  children: ReactNode;
+  allowEmpty?: boolean;
+  fab?: boolean;
+}) {
   const { t } = useI18n();
   const tree = useTree();
 
@@ -58,7 +66,7 @@ export function TreeScreen({ children, allowEmpty = false }: { children: ReactNo
   return (
     <>
       {tree.people.length === 0 && !allowEmpty ? <EmptyPeople /> : children}
-      {tree.people.length > 0 && <AddFab />}
+      {tree.people.length > 0 && fab && <AddFab />}
     </>
   );
 }

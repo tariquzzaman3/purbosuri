@@ -14,7 +14,7 @@ import {
   type Firestore,
 } from 'firebase/firestore';
 import { db } from '../firebase';
-import type { Contact, FlexDate, JoinRequest, Person, PersonFields, RelKind, RelStatus, RelType, Relationship, TreeSettings } from './types';
+import type { Contact, EndKind, FlexDate, JoinRequest, SpouseDates, Person, PersonFields, RelKind, RelStatus, RelType, Relationship, TreeSettings } from './types';
 
 function database(): Firestore {
   if (!db) throw new Error('not-configured');
@@ -55,6 +55,9 @@ export interface NewRelationship {
   personB: string;
   kind?: RelKind;
   status?: RelStatus;
+  startDate?: FlexDate;
+  endDate?: FlexDate;
+  endKind?: EndKind;
 }
 
 function relationshipData(uid: string, rel: NewRelationship) {
@@ -186,7 +189,7 @@ export async function addPerson(
   treeId: string,
   uid: string,
   fields: PersonFields,
-  relation?: { existingId: string; as: 'parent' | 'child' | 'spouse'; kind?: RelKind },
+  relation?: { existingId: string; as: 'parent' | 'child' | 'spouse'; kind?: RelKind; dates?: SpouseDates },
 ): Promise<string> {
   const d = database();
   const personRef = doc(collection(d, 'trees', treeId, 'people'));
@@ -200,7 +203,7 @@ export async function addPerson(
         ? { type: 'parent', personA: personRef.id, personB: relation.existingId, kind: relation.kind }
         : relation.as === 'child'
           ? { type: 'parent', personA: relation.existingId, personB: personRef.id, kind: relation.kind }
-          : { type: 'spouse', personA: relation.existingId, personB: personRef.id };
+          : { type: 'spouse', personA: relation.existingId, personB: personRef.id, ...relation.dates };
     batch.set(relRef, relationshipData(uid, rel));
   }
 
@@ -236,6 +239,42 @@ export async function addRelationship(treeId: string, uid: string, rel: NewRelat
   const batch = writeBatch(d);
   batch.set(ref, relationshipData(uid, rel));
   await batch.commit();
+}
+
+/** A cleared date or end is removed instead of left behind. */
+function datesPatch(dates: SpouseDates): Record<string, unknown> {
+  const clearedOr = <T,>(v: T | undefined) => (v === undefined ? deleteField() : v);
+  return {
+    startDate: clearedOr(dates.startDate && Object.keys(dates.startDate).length > 0 ? dates.startDate : undefined),
+    endDate: clearedOr(dates.endDate && Object.keys(dates.endDate).length > 0 ? dates.endDate : undefined),
+    endKind: clearedOr(dates.endKind),
+  };
+}
+
+export async function updateRelationshipDates(treeId: string, relId: string, dates: SpouseDates): Promise<void> {
+  await updateDoc(doc(database(), 'trees', treeId, 'relationships', relId), {
+    ...datesPatch(dates),
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export function proposeEditRelation(
+  treeId: string,
+  uid: string,
+  proposerName: string,
+  relId: string,
+  description: string,
+  dates: SpouseDates,
+  reason: string,
+) {
+  return submitProposal(treeId, uid, proposerName, {
+    kind: 'editRelation',
+    targetType: 'relationship',
+    targetId: relId,
+    targetName: description,
+    reason,
+    payload: { relId, dates: JSON.parse(JSON.stringify(dates)) as Record<string, unknown> },
+  });
 }
 
 export async function removeRelationship(treeId: string, relId: string): Promise<void> {
@@ -460,7 +499,13 @@ export async function savePublicContact(treeId: string, personId: string, contac
 
 // ---------- suggestions from participants, and their approval ----------
 
-export type ProposalKind = 'addPerson' | 'editPerson' | 'deletePerson' | 'addRelation' | 'removeRelation';
+export type ProposalKind =
+  | 'addPerson'
+  | 'editPerson'
+  | 'deletePerson'
+  | 'addRelation'
+  | 'removeRelation'
+  | 'editRelation';
 
 export interface Report {
   id: string;
@@ -554,7 +599,9 @@ export function proposeAddPerson(
   uid: string,
   proposerName: string,
   fields: PersonFields,
-  relation: { existingId: string; as: 'parent' | 'child' | 'spouse'; kind?: RelKind; existingName?: string } | undefined,
+  relation:
+    | { existingId: string; as: 'parent' | 'child' | 'spouse'; kind?: RelKind; existingName?: string; dates?: SpouseDates }
+    | undefined,
   reason: string,
 ) {
   const name = fields.nameBn || fields.nameEn || '';
@@ -661,10 +708,11 @@ export async function approveProposal(
   const batch = writeBatch(d);
   const payload = p.payload as {
     fields?: Record<string, unknown>;
-    relation?: { existingId: string; as: 'parent' | 'child' | 'spouse'; kind?: RelKind };
+    relation?: { existingId: string; as: 'parent' | 'child' | 'spouse'; kind?: RelKind; dates?: SpouseDates };
     changes?: Record<string, unknown>;
     rel?: NewRelationship;
     relId?: string;
+    dates?: SpouseDates;
   };
 
   if (p.kind === 'addPerson') {
@@ -681,7 +729,7 @@ export async function approveProposal(
           ? { type: 'parent', personA: personRef.id, personB: existingId, kind }
           : as === 'child'
             ? { type: 'parent', personA: existingId, personB: personRef.id, kind }
-            : { type: 'spouse', personA: existingId, personB: personRef.id };
+            : { type: 'spouse', personA: existingId, personB: personRef.id, ...(payload.relation.dates ?? {}) };
       batch.set(doc(collection(d, 'trees', treeId, 'relationships')), relationshipData(adminUid, rel));
     }
   } else if (p.kind === 'editPerson') {
@@ -702,6 +750,11 @@ export async function approveProposal(
     batch.set(doc(collection(d, 'trees', treeId, 'relationships')), relationshipData(adminUid, payload.rel));
   } else if (p.kind === 'removeRelation' && payload.relId) {
     batch.delete(doc(d, 'trees', treeId, 'relationships', payload.relId));
+  } else if (p.kind === 'editRelation' && payload.relId) {
+    batch.update(doc(d, 'trees', treeId, 'relationships', payload.relId), {
+      ...datesPatch((payload.dates ?? {}) as SpouseDates),
+      updatedAt: serverTimestamp(),
+    });
   }
 
   batch.update(doc(d, 'trees', treeId, 'proposals', p.id), {
@@ -786,4 +839,43 @@ export async function approveMemory(treeId: string, memoryId: string): Promise<v
 
 export async function deleteMemory(treeId: string, memoryId: string): Promise<void> {
   await deleteDoc(doc(database(), 'trees', treeId, 'memories', memoryId));
+}
+
+export type ReactionType = 'like' | 'love' | 'sad';
+
+/** One reaction per person: choosing the same one again takes it back. */
+export async function setReaction(
+  treeId: string,
+  memoryId: string,
+  uid: string,
+  type: ReactionType | null,
+  hadBefore: boolean,
+): Promise<void> {
+  const ref = doc(database(), 'trees', treeId, 'memories', memoryId, 'reactions', uid);
+  if (type === null) {
+    await deleteDoc(ref);
+  } else if (hadBefore) {
+    await updateDoc(ref, { type });
+  } else {
+    await setDoc(ref, { type, createdAt: serverTimestamp() });
+  }
+}
+
+export async function addComment(
+  treeId: string,
+  memoryId: string,
+  uid: string,
+  name: string,
+  text: string,
+): Promise<void> {
+  await setDoc(doc(collection(database(), 'trees', treeId, 'memories', memoryId, 'comments')), {
+    authorUid: uid,
+    authorName: (name || 'Member').slice(0, 100),
+    text: text.trim().slice(0, 2000),
+    createdAt: serverTimestamp(),
+  });
+}
+
+export async function deleteComment(treeId: string, memoryId: string, commentId: string): Promise<void> {
+  await deleteDoc(doc(database(), 'trees', treeId, 'memories', memoryId, 'comments', commentId));
 }

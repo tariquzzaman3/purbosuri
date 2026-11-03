@@ -4,6 +4,7 @@ import { errorKey, useAuth } from '../auth';
 import { useI18n, type Lang, type TKey } from '../i18n';
 import {
   BN_FONTS,
+  COLOR_CHOICES,
   EN_FONTS,
   useSettings,
   type TextSize,
@@ -146,6 +147,34 @@ export function SettingsPage() {
             options={THEMES.map((o) => ({ id: o.id, text: t(o.label) }))}
             onChange={(theme) => s.set({ theme })}
           />
+        </div>
+
+        <div className="set-row">
+          <span className="set-label">{t('setColor')}</span>
+          <div className="set-colors">
+            {COLOR_CHOICES.map((c) => (
+              <button
+                key={c}
+                type="button"
+                className={s.color === c ? 'color-dot active' : 'color-dot'}
+                style={{ background: c }}
+                aria-label={c}
+                aria-pressed={s.color === c}
+                onClick={() => s.set({ color: c })}
+              />
+            ))}
+            <input
+              type="color"
+              className="color-custom"
+              aria-label={t('setColorCustom')}
+              title={t('setColorCustom')}
+              value={s.color || COLOR_CHOICES[0]}
+              onChange={(e) => s.set({ color: e.target.value })}
+            />
+            <button type="button" className="btn small" onClick={() => s.set({ color: '' })}>
+              {t('setColorReset')}
+            </button>
+          </div>
         </div>
 
         <div className="set-row">

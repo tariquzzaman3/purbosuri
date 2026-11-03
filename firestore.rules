@@ -477,8 +477,9 @@ service cloud.firestore {
       function validRelationship(d) {
         return d.keys().hasOnly([
             'personA', 'personB', 'type', 'kind', 'status',
-            'startDate', 'endDate', 'note', 'createdBy', 'createdAt', 'updatedAt'
+            'startDate', 'endDate', 'endKind', 'note', 'createdBy', 'createdAt', 'updatedAt'
           ])
+          && (!('endKind' in d) || d.endKind in ['divorce', 'separation', 'death'])
           && d.keys().hasAll(['personA', 'personB', 'type', 'createdBy', 'createdAt'])
           && d.personA is string
           && d.personB is string
@@ -555,6 +556,45 @@ service cloud.firestore {
         allow delete: if canContribute(treeId)
           && (isReviewer(treeId)
               || (resource.data.authorUid == request.auth.uid && resource.data.status == 'pending'));
+
+        function memoryIsPublished() {
+          return get(/databases/$(database)/documents/trees/$(treeId)/memories/$(memoryId)).data.status == 'published';
+        }
+
+        // One reaction per person (the document id is their uid), only on published stories.
+        match /reactions/{reactorUid} {
+          allow read: if isMember(treeId);
+          allow create: if canContribute(treeId)
+            && reactorUid == request.auth.uid
+            && memoryIsPublished()
+            && request.resource.data.keys().hasOnly(['type', 'createdAt'])
+            && request.resource.data.type in ['like', 'love', 'sad']
+            && request.resource.data.createdAt == request.time;
+          allow update: if canContribute(treeId)
+            && reactorUid == request.auth.uid
+            && request.resource.data.keys().hasOnly(['type', 'createdAt'])
+            && request.resource.data.type in ['like', 'love', 'sad']
+            && request.resource.data.createdAt == resource.data.createdAt;
+          allow delete: if reactorUid == request.auth.uid;
+        }
+
+        // Comments are not edited; the author or an admin can remove one.
+        match /comments/{commentId} {
+          allow read: if isMember(treeId);
+          allow create: if canContribute(treeId)
+            && memoryIsPublished()
+            && request.resource.data.keys().hasOnly(['authorUid', 'authorName', 'text', 'createdAt'])
+            && request.resource.data.keys().hasAll(['authorUid', 'text', 'createdAt'])
+            && request.resource.data.authorUid == request.auth.uid
+            && optString(request.resource.data, 'authorName', 100)
+            && request.resource.data.text is string
+            && request.resource.data.text.size() > 0
+            && request.resource.data.text.size() <= 2000
+            && request.resource.data.createdAt == request.time;
+          allow update: if false;
+          allow delete: if isMember(treeId)
+            && (resource.data.authorUid == request.auth.uid || isReviewer(treeId));
+        }
       }
 
       // ---------- media records (metadata only; files are stored elsewhere) ----------
@@ -644,7 +684,8 @@ service cloud.firestore {
                ['targetType', 'targetId', 'reason', 'status', 'proposedBy', 'createdAt'])
           && (!('kind' in request.resource.data)
               || request.resource.data.kind in
-                   ['addPerson', 'editPerson', 'deletePerson', 'addRelation', 'removeRelation'])
+                   ['addPerson', 'editPerson', 'deletePerson', 'addRelation', 'removeRelation',
+                    'editRelation'])
           && (!('payload' in request.resource.data)
               || (request.resource.data.payload is map && request.resource.data.payload.keys().size() <= 40))
           && optString(request.resource.data, 'proposerName', 100)

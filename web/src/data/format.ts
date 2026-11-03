@@ -53,3 +53,27 @@ export function truncate(text: string, max: number): string {
   }
   return text.length <= max ? text : `${text.slice(0, max - 1)}…`;
 }
+
+export interface MarriageLabels {
+  married: string;
+  divorce: string;
+  separation: string;
+  death: string;
+  approx: string;
+}
+
+/** "Married 1990 – divorced 2000": what shows for a spouse where birth and death would show. */
+export function marriageSpan(
+  r: { startDate?: FlexDate; endDate?: FlexDate; endKind?: 'divorce' | 'separation' | 'death' },
+  lang: Lang,
+  labels: MarriageLabels,
+  yearOnly = false,
+): string {
+  const shape = (d?: FlexDate): FlexDate | undefined => (yearOnly && d ? { year: d.year, approx: d.approx } : d);
+  const start = formatDate(shape(r.startDate), lang, labels.approx);
+  const end = formatDate(shape(r.endDate), lang, labels.approx);
+  const endWord = r.endKind ? labels[r.endKind] : '';
+  const first = start ? `${labels.married} ${start}` : '';
+  const second = end || endWord ? [endWord, end].filter(Boolean).join(' ') : '';
+  return [first, second].filter(Boolean).join(' – ');
+}

@@ -1,12 +1,23 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../auth';
-import { useI18n } from '../i18n';
-import { formatDate, personName } from '../data/format';
-import { approveMemory, createMemory, deleteMemory, updateMemory } from '../data/mutations';
+import { useI18n, type TKey } from '../i18n';
+import { formatDate, num, personName, truncate } from '../data/format';
+import {
+  addComment,
+  approveMemory,
+  createMemory,
+  deleteComment,
+  deleteMemory,
+  setReaction,
+  updateMemory,
+  type ReactionType,
+} from '../data/mutations';
+import { upcomingEvents } from '../data/calendar';
 import type { FlexDate, Memory } from '../data/types';
 import { useTree } from './TreeContext';
 import { useMemories } from './useMemories';
+import { useComments, useReactions } from './useReactions';
 
 const toInputDate = (d?: FlexDate): string =>
   d?.year && d.month && d.day
@@ -18,7 +29,7 @@ const fromInputDate = (s: string): FlexDate | undefined => {
   return m ? { year: Number(m[1]), month: Number(m[2]), day: Number(m[3]) } : undefined;
 };
 
-function Composer({ editing, onDone }: { editing?: Memory; onDone: () => void }) {
+function Composer({ editing, onDone, collapsible = false }: { editing?: Memory; onDone: () => void; collapsible?: boolean }) {
   const { t, lang } = useI18n();
   const { user } = useAuth();
   const { current, people, canEdit } = useTree();
@@ -31,6 +42,7 @@ function Composer({ editing, onDone }: { editing?: Memory; onDone: () => void })
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  const [open, setOpen] = useState(!collapsible);
   const unknown = t('unknownName');
 
   const shown = useMemo(() => {
@@ -60,12 +72,33 @@ function Composer({ editing, onDone }: { editing?: Memory; onDone: () => void })
       setPlace('');
       setIds([]);
       setNote(canEdit ? t('memPosted') : t('memSent'));
+      if (collapsible) setOpen(false);
     } catch {
       setError(t('memFailed'));
     } finally {
       setBusy(false);
     }
   };
+
+  if (!open) {
+    const first = (user?.displayName || '').split(' ')[0];
+    return (
+      <section className="card composer-collapsed">
+        <span className="avatar" aria-hidden="true">
+          {(user?.displayName || user?.email || '?').slice(0, 1).toUpperCase()}
+        </span>
+        <button type="button" className="composer-prompt" onClick={() => setOpen(true)}>
+          {t('memComposePrompt')}
+          {first ? `, ${first}?` : ''}
+        </button>
+        {note && (
+          <p className="msg ok" role="status">
+            {note}
+          </p>
+        )}
+      </section>
+    );
+  }
 
   return (
     <section className="card">
@@ -110,8 +143,15 @@ function Composer({ editing, onDone }: { editing?: Memory; onDone: () => void })
       <button type="button" className="btn primary" disabled={busy} onClick={() => void submit()}>
         {editing ? t('memSave') : canEdit ? t('memPost') : t('memSubmit')}
       </button>
-      {editing && (
-        <button type="button" className="btn" onClick={onDone}>
+      {(editing || collapsible) && (
+        <button
+          type="button"
+          className="btn"
+          onClick={() => {
+            if (collapsible) setOpen(false);
+            onDone();
+          }}
+        >
           {t('mCancel')}
         </button>
       )}
@@ -119,18 +159,107 @@ function Composer({ editing, onDone }: { editing?: Memory; onDone: () => void })
   );
 }
 
-/** One story, shown like a post. */
+const PREVIEW_CHARS = 280;
+const PREVIEW_LINES = 5;
+
+const REACTIONS: Array<{ id: ReactionType; emoji: string; label: TKey }> = [
+  { id: 'like', emoji: '👍', label: 'reactLike' },
+  { id: 'love', emoji: '❤️', label: 'reactLove' },
+  { id: 'sad', emoji: '😢', label: 'reactSad' },
+];
+
+function Comments({ treeId, memoryId, canWrite }: { treeId: string; memoryId: string; canWrite: boolean }) {
+  const { t, lang } = useI18n();
+  const { user } = useAuth();
+  const { canEdit } = useTree();
+  const comments = useComments(treeId, memoryId, true);
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(false);
+
+  const send = async () => {
+    if (!user || !text.trim()) return;
+    setBusy(true);
+    setError(false);
+    try {
+      await addComment(treeId, memoryId, user.uid, user.displayName || user.email || '', text);
+      setText('');
+    } catch {
+      setError(true);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="comments">
+      {comments.map((c) => (
+        <div key={c.id} className="comment">
+          <span className="avatar small" aria-hidden="true">
+            {(c.authorName || '?').slice(0, 1).toUpperCase()}
+          </span>
+          <div className="comment-bubble">
+            <strong>{c.authorName || '—'}</strong>
+            <p>{c.text}</p>
+            <span className="muted small">
+              {c.createdAt?.toLocaleDateString(lang === 'bn' ? 'bn-BD' : 'en-GB')}
+              {(c.authorUid === user?.uid || canEdit) && (
+                <>
+                  {' · '}
+                  <button
+                    type="button"
+                    className="link-btn"
+                    onClick={() => {
+                      if (window.confirm(t('memConfirmDeleteComment'))) void deleteComment(treeId, memoryId, c.id);
+                    }}
+                  >
+                    {t('memDelete')}
+                  </button>
+                </>
+              )}
+            </span>
+          </div>
+        </div>
+      ))}
+      {canWrite && (
+        <div className="comment-form">
+          <input
+            type="text"
+            value={text}
+            maxLength={2000}
+            placeholder={t('memCommentPlaceholder')}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void send();
+            }}
+          />
+          <button type="button" className="btn primary small" disabled={busy || !text.trim()} onClick={() => void send()}>
+            {t('memCommentSend')}
+          </button>
+        </div>
+      )}
+      {error && <p className="msg error">{t('memFailed')}</p>}
+    </div>
+  );
+}
+
+/** One story, shown like a post: author, a short preview, reactions and comments. */
 export function MemoryCard({ m }: { m: Memory }) {
   const { t, lang } = useI18n();
   const { user } = useAuth();
-  const { current, graph, canEdit } = useTree();
+  const { current, graph, canEdit, canContribute } = useTree();
   const [editing, setEditing] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const [showComments, setShowComments] = useState(false);
   const [error, setError] = useState(false);
   const treeId = current?.id;
   const mine = m.authorUid === user?.uid;
   const waiting = m.status === 'pending';
+  const published = !waiting;
   const canChange = canEdit || (mine && waiting);
   const canEditIt = canEdit || mine;
+  const reactions = useReactions(treeId, m.id, published);
+  const comments = useComments(treeId, m.id, published);
 
   if (editing) return <Composer editing={m} onDone={() => setEditing(false)} />;
 
@@ -148,18 +277,39 @@ export function MemoryCard({ m }: { m: Memory }) {
     return p ? [p] : [];
   });
   const when = formatDate(m.date, lang, t('fApprox'));
+  const long = m.body.length > PREVIEW_CHARS || m.body.split('\n').length > PREVIEW_LINES;
+  const preview = truncate(m.body.split('\n').slice(0, PREVIEW_LINES).join('\n'), PREVIEW_CHARS);
+  const myReaction = user ? reactions[user.uid] : undefined;
+  const counts = REACTIONS.map((r) => ({ ...r, n: Object.values(reactions).filter((x) => x === r.id).length })).filter(
+    (r) => r.n > 0,
+  );
+
+  const react = (type: ReactionType) => {
+    if (!user || !treeId) return;
+    void run(() => setReaction(treeId, m.id, user.uid, myReaction === type ? null : type, myReaction !== undefined));
+  };
 
   return (
     <article className="card memory">
-      <div className="tree-item-head">
-        <strong>{m.title || ''}</strong>
-        {waiting && <span className="badge">{t('memWaiting')}</span>}
+      <div className="post-head">
+        <span className="avatar" aria-hidden="true">
+          {(m.authorName || '?').slice(0, 1).toUpperCase()}
+        </span>
+        <div>
+          <strong>{m.authorName || '—'}</strong>
+          <div className="muted small">
+            {m.createdAt ? m.createdAt.toLocaleDateString(lang === 'bn' ? 'bn-BD' : 'en-GB') : ''}
+            {waiting && <span className="badge">{t('memWaiting')}</span>}
+          </div>
+        </div>
       </div>
-      <p className="muted small">
-        {t('memBy')}: {m.authorName || '—'}
-        {m.createdAt ? ` · ${m.createdAt.toLocaleDateString(lang === 'bn' ? 'bn-BD' : 'en-GB')}` : ''}
-      </p>
-      <p className="memory-body">{m.body}</p>
+      {m.title && <h3 className="post-title">{m.title}</h3>}
+      <p className="memory-body">{expanded || !long ? m.body : preview}</p>
+      {long && (
+        <button type="button" className="link-btn" onClick={() => setExpanded((v) => !v)}>
+          {expanded ? t('memReadLess') : t('memReadMore')}
+        </button>
+      )}
       {(when || m.place) && <p className="muted small">{[when, m.place].filter(Boolean).join(' · ')}</p>}
       {people.length > 0 && (
         <p className="small">
@@ -174,6 +324,40 @@ export function MemoryCard({ m }: { m: Memory }) {
           ))}
         </p>
       )}
+
+      {published && (
+        <>
+          {(counts.length > 0 || comments.length > 0) && (
+            <div className="post-stats muted small">
+              <span>{counts.map((r) => `${r.emoji} ${num(r.n, lang)}`).join('  ')}</span>
+              {comments.length > 0 && (
+                <button type="button" className="link-btn" onClick={() => setShowComments(true)}>
+                  {num(comments.length, lang)} {t('memComments')}
+                </button>
+              )}
+            </div>
+          )}
+          <div className="post-actions">
+            {REACTIONS.map((r) => (
+              <button
+                key={r.id}
+                type="button"
+                disabled={!canContribute}
+                className={myReaction === r.id ? 'react-btn active' : 'react-btn'}
+                aria-pressed={myReaction === r.id}
+                onClick={() => react(r.id)}
+              >
+                <span aria-hidden="true">{r.emoji}</span> {t(r.label)}
+              </button>
+            ))}
+            <button type="button" className="react-btn" onClick={() => setShowComments((v) => !v)}>
+              {t('memComment')}
+            </button>
+          </div>
+          {showComments && treeId && <Comments treeId={treeId} memoryId={m.id} canWrite={canContribute} />}
+        </>
+      )}
+
       {error && <p className="msg error">{t('memFailed')}</p>}
       <div className="tree-item-actions">
         {canEdit && waiting && treeId && (
@@ -202,7 +386,60 @@ export function MemoryCard({ m }: { m: Memory }) {
   );
 }
 
-/** Written stories of the family, newest first, like a feed. */
+const DAYS_AHEAD = 60;
+
+/** Bars across the top: what is coming up in the next weeks. */
+function UpcomingStrip({ published }: { published: Memory[] }) {
+  const { t, lang } = useI18n();
+  const { people, graph } = useTree();
+  const today = useMemo(() => new Date(), []);
+  const events = useMemo(
+    () => upcomingEvents(people, published, today, DAYS_AHEAD).slice(0, 10),
+    [people, published, today],
+  );
+  const fmt = new Intl.DateTimeFormat(lang === 'bn' ? 'bn-BD' : 'en-GB', { day: 'numeric', month: 'short' });
+  const kindKey: Record<string, TKey> = { birthday: 'calBirthday', remembrance: 'calRemembrance', memory: 'calMemory' };
+
+  return (
+    <section className="upcoming" aria-label={t('calTitle')}>
+      <h3>{t('calTitle')}</h3>
+      {events.length === 0 ? (
+        <p className="muted small">{t('calNone')}</p>
+      ) : (
+        <ul className="upcoming-list">
+          {events.map((e) => {
+            const p = e.personId ? graph.people.get(e.personId) : undefined;
+            const memory = e.memoryId ? published.find((m) => m.id === e.memoryId) : undefined;
+            const label = p ? personName(p, lang, t('unknownName')) : memory?.title || memory?.body.slice(0, 30) || '—';
+            const content = (
+              <>
+                <span className="upcoming-date">{fmt.format(e.date)}</span>
+                <span className="upcoming-name">{label}</span>
+                <span className="muted small">
+                  {t(kindKey[e.kind])}
+                  {e.years !== undefined && e.years > 0 ? ` · ${num(e.years, lang)} ${t('calYears')}` : ''}
+                </span>
+              </>
+            );
+            return (
+              <li key={`${e.kind}-${e.personId ?? e.memoryId}`}>
+                {p ? (
+                  <Link className="upcoming-item" to={`/home/person/${p.id}`}>
+                    {content}
+                  </Link>
+                ) : (
+                  <div className="upcoming-item">{content}</div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+/** Written stories of the family: upcoming days, a place to write, then the feed. */
 export function MemoriesPage() {
   const { t } = useI18n();
   const { user } = useAuth();
@@ -214,10 +451,8 @@ export function MemoriesPage() {
 
   return (
     <div className="memories-page">
-      <h2>{t('memTitle')}</h2>
-      <p className="muted small">{current.name}</p>
-      <p>{t('memIntro')}</p>
-      {canContribute && <Composer onDone={() => undefined} />}
+      <UpcomingStrip published={published} />
+      {canContribute && <Composer collapsible onDone={() => undefined} />}
 
       {waiting.length > 0 && (
         <>
