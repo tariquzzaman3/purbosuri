@@ -1566,3 +1566,8 @@ input[type='color'].color-custom {
   top: 6px;
   right: calc(50% - 38px);
 }
+
+.group-label {
+  margin: 8px 0 2px;
+  font-weight: 700;
+}

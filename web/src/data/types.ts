@@ -87,6 +87,8 @@ export interface Relationship {
   endDate?: FlexDate;
   endKind?: EndKind;
   createdBy: string;
+  /** When the link was recorded (as stored by the database); used to keep spouses in the order added. */
+  createdAt?: { seconds?: number };
 }
 
 export type EndKind = 'divorce' | 'separation' | 'death';

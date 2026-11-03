@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   buildForest,
   buildGraph,
+  byBirthOrder,
   childIds,
+  childrenByFamily,
+  spousesInOrder,
   countPeople,
   findUnit,
   generations,
@@ -442,5 +445,66 @@ describe('chart layout with cards of different widths', () => {
     const layout = layoutForest(buildForest(family()), (id) => (id === 'dad' ? 300 : CARD_W));
     expect(layout.cards.find((c) => c.id === 'dad')!.w).toBe(300);
     expect(layout.cards.find((c) => c.id === 'mum')!.w).toBe(CARD_W);
+  });
+});
+
+describe('profile order of spouses and children', () => {
+  const spouse = (a: string, b: string, extra: Partial<Relationship> = {}): Relationship => ({
+    id: `s${n++}`,
+    personA: a,
+    personB: b,
+    type: 'spouse',
+    createdBy: 'u',
+    ...extra,
+  });
+
+  it('puts children by birth order, ahead of birth dates', () => {
+    const older = person('older', { birth: { year: 1990 }, birthOrder: 2 });
+    const younger = person('younger', { birth: { year: 1995 }, birthOrder: 1 });
+    expect([older, younger].sort(byBirthOrder).map((p) => p.id)).toEqual(['younger', 'older']);
+    const unnumbered = person('none', { birth: { year: 1980 } });
+    expect([unnumbered, older].sort(byBirthOrder).map((p) => p.id)).toEqual(['older', 'none']);
+  });
+
+  it('keeps several spouses in order: marriage date first, then the order recorded', () => {
+    const dad = person('dad');
+    const w1 = person('w1');
+    const w2 = person('w2');
+    const w3 = person('w3');
+    const rels = [
+      spouse('dad', 'w2', { startDate: { year: 2000 } }),
+      spouse('dad', 'w1', { startDate: { year: 1990 } }),
+      spouse('dad', 'w3', { createdAt: { seconds: 5 } }),
+    ];
+    const g = buildGraph([dad, w1, w2, w3], rels);
+    expect(spousesInOrder(rels, g, 'dad').map((s) => s.person.id)).toEqual(['w1', 'w2', 'w3']);
+  });
+
+  it('groups children under each spouse in that order, with unknown other parent last', () => {
+    const dad = person('dad');
+    const w1 = person('w1');
+    const w2 = person('w2');
+    const a = person('a', { birthOrder: 2 });
+    const b = person('b', { birthOrder: 1 });
+    const c = person('c', { birthOrder: 1 });
+    const d = person('d');
+    const rels = [
+      spouse('dad', 'w1', { startDate: { year: 1990 } }),
+      spouse('dad', 'w2', { startDate: { year: 2000 } }),
+      parent('dad', 'a'),
+      parent('w1', 'a'),
+      parent('dad', 'b'),
+      parent('w1', 'b'),
+      parent('dad', 'c'),
+      parent('w2', 'c'),
+      parent('dad', 'd'),
+    ];
+    const g = buildGraph([dad, w1, w2, a, b, c, d], rels);
+    const groups = childrenByFamily(rels, g, 'dad');
+    expect(groups.map((x) => [x.spouse?.id, x.children.map((k) => k.person.id)])).toEqual([
+      ['w1', ['b', 'a']],
+      ['w2', ['c']],
+      [undefined, ['d']],
+    ]);
   });
 });
