@@ -137,7 +137,7 @@ function Row({ node, badges, graph, collapsed, toggle }: RowProps) {
 
 function ListContent() {
   const { t, lang } = useI18n();
-  const { graph, people } = useTree();
+  const { graph, people, canContribute } = useTree();
   const forest = useMemo(() => buildForest(graph), [graph]);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState('');
@@ -159,15 +159,22 @@ function ListContent() {
 
   return (
     <section>
-      <label className="field search">
-        <span className="sr-only">{t('searchPeople')}</span>
-        <input
-          type="search"
-          value={query}
-          placeholder={t('searchPeople')}
-          onChange={(e) => setQuery(e.target.value)}
-        />
-      </label>
+      <div className="search-row">
+        <label className="field search">
+          <span className="sr-only">{t('searchPeople')}</span>
+          <input
+            type="search"
+            value={query}
+            placeholder={t('searchPeople')}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </label>
+        {canContribute && (
+          <Link className="add-btn" to="/home/add" aria-label={t('addPerson')} title={t('addPerson')}>
+            +
+          </Link>
+        )}
+      </div>
 
       {q ? (
         matches.length === 0 ? (
@@ -207,7 +214,7 @@ function ListContent() {
 
 export function ListPage() {
   return (
-    <TreeScreen>
+    <TreeScreen fab={false}>
       <ListContent />
     </TreeScreen>
   );

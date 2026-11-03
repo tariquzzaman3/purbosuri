@@ -1108,6 +1108,62 @@ describe('memories', () => {
   });
 });
 
+describe('reactions and comments on stories', () => {
+  const seedStory = async (id: string, status: string) => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `trees/treeA/memories/${id}`), {
+        body: 'গল্প',
+        authorUid: 'carl',
+        status,
+        createdAt: Timestamp.now(),
+      });
+    });
+  };
+  const comment = (uid: string, extra: Record<string, unknown> = {}) => ({
+    authorUid: uid,
+    authorName: uid,
+    text: 'খুব সুন্দর',
+    createdAt: serverTimestamp(),
+    ...extra,
+  });
+
+  it('a participant reacts once, as themselves, on a published story only', async () => {
+    await seedStory('s1', 'published');
+    await seedStory('s2', 'pending');
+    const reaction = { type: 'love', createdAt: serverTimestamp() };
+    await assertSucceeds(setDoc(doc(db('carl'), 'trees/treeA/memories/s1/reactions/carl'), reaction));
+    await assertFails(setDoc(doc(db('carl'), 'trees/treeA/memories/s1/reactions/rita'), reaction));
+    await assertFails(setDoc(doc(db('carl'), 'trees/treeA/memories/s2/reactions/carl'), reaction));
+    await assertFails(setDoc(doc(db('carl'), 'trees/treeA/memories/s1/reactions/carl'), { type: 'angry', createdAt: serverTimestamp() }));
+    await assertSucceeds(deleteDoc(doc(db('carl'), 'trees/treeA/memories/s1/reactions/carl')));
+    await assertFails(setDoc(doc(db('bob'), 'trees/treeA/memories/s1/reactions/bob'), reaction));
+  });
+
+  it('members read reactions and comments; outsiders do not', async () => {
+    await seedStory('s3', 'published');
+    await setDoc(doc(db('carl'), 'trees/treeA/memories/s3/comments/c1'), comment('carl'));
+    await assertSucceeds(getDoc(doc(db('vera'), 'trees/treeA/memories/s3/comments/c1')));
+    await assertFails(getDoc(doc(db('bob'), 'trees/treeA/memories/s3/comments/c1')));
+  });
+
+  it('comments are the author’s own, not editable, and removable by the author or an admin', async () => {
+    await seedStory('s4', 'published');
+    await assertSucceeds(setDoc(doc(db('carl'), 'trees/treeA/memories/s4/comments/c1'), comment('carl')));
+    await assertFails(setDoc(doc(db('carl'), 'trees/treeA/memories/s4/comments/c2'), comment('rita')));
+    await assertFails(setDoc(doc(db('carl'), 'trees/treeA/memories/s4/comments/c3'), comment('carl', { text: '' })));
+    await assertFails(updateDoc(doc(db('carl'), 'trees/treeA/memories/s4/comments/c1'), { text: 'বদল' }));
+    await assertFails(deleteDoc(doc(db('vera'), 'trees/treeA/memories/s4/comments/c1')));
+    await assertSucceeds(deleteDoc(doc(db('rita'), 'trees/treeA/memories/s4/comments/c1')));
+    await assertSucceeds(setDoc(doc(db('carl'), 'trees/treeA/memories/s4/comments/c4'), comment('carl')));
+    await assertSucceeds(deleteDoc(doc(db('carl'), 'trees/treeA/memories/s4/comments/c4')));
+  });
+
+  it('nobody comments on a story that is still waiting', async () => {
+    await seedStory('s5', 'pending');
+    await assertFails(setDoc(doc(db('carl'), 'trees/treeA/memories/s5/comments/c1'), comment('carl')));
+  });
+});
+
 describe('email verification', () => {
   const asPassword = (uid: string, verified: boolean): Db =>
     env.authenticatedContext(uid, { email_verified: verified, firebase: { sign_in_provider: 'password' } }).firestore();

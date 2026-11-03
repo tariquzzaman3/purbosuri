@@ -12,7 +12,7 @@ import { useI18n } from '../i18n';
 import { useSettings } from '../settings';
 import { buildForest, findUnit } from '../data/graph';
 import { CARD_H, CARD_W, layoutForest } from '../data/layout';
-import { lifeSpan, num, personName } from '../data/format';
+import { lifeSpan, marriageSpan, num, personName } from '../data/format';
 import { TreeScreen } from './TreeScreen';
 import { useTree } from './TreeContext';
 
@@ -127,7 +127,7 @@ const ICON_ROTATE = 'M20 12a8 8 0 1 1-2.6-5.9M20 4v5h-5';
 
 function Chart() {
   const { t, lang } = useI18n();
-  const { graph, people } = useTree();
+  const { graph, people, rels } = useTree();
   const unknown = t('unknownName');
   const approx = t('fApprox');
   const { fontSignature } = useSettings();
@@ -164,6 +164,24 @@ function Chart() {
     return info;
     // fontsReady is listed so cards are measured again once the real font arrives.
   }, [graph, lang, unknown, approx, t, fontsReady, fontSignature]);
+
+  // A spouse's box shows the marriage where a birth and death would show.
+  const spouseSpan = (spouseId: string, partnerId: string, w: number, fallback: string): string => {
+    const rel = rels.find(
+      (r) =>
+        r.type === 'spouse' &&
+        ((r.personA === spouseId && r.personB === partnerId) || (r.personA === partnerId && r.personB === spouseId)),
+    );
+    if (!rel) return fallback;
+    const text = marriageSpan(rel, lang, {
+      married: t('spouseMarried'),
+      divorce: t('spouseDivorce'),
+      separation: t('spouseSeparation'),
+      death: t('spouseDeathOf'),
+      approx: approx,
+    }, true);
+    return text ? fitText(text, spanFont(), w - CARD_PAD) : fallback;
+  };
 
   const layout = useMemo(
     () => layoutForest(shown, (id) => cardInfo.get(id)?.w ?? CARD_W),
@@ -435,7 +453,7 @@ function Chart() {
                       {info.name}
                     </text>
                     <text x={c.w / 2} y={40} textAnchor="middle" className="card-span">
-                      {info.span}
+                      {c.isSpouse && c.partnerOf ? spouseSpan(c.id, c.partnerOf, c.w, info.span) : info.span}
                     </text>
                     <text x={c.w / 2} y={55} textAnchor="middle" className="card-gen">
                       {genText}

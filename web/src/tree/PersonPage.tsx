@@ -8,20 +8,23 @@ import {
   wouldCreateCycle,
   type WarningCode,
 } from '../data/graph';
-import { formatDate, lifeSpan, num, personName } from '../data/format';
+import { formatDate, lifeSpan, marriageSpan, num, personName } from '../data/format';
 import { KIND_KEYS, VERIFICATION_KEYS, relationshipBadges } from '../data/labels';
 import {
   addRelationship,
   deletePerson,
   proposeAddRelation,
   proposeDeletePerson,
+  proposeEditRelation,
   proposeRemoveRelation,
+  updateRelationshipDates,
   removeRelationship,
   savePublicContact,
 } from '../data/mutations';
 import type { Person, RelKind, Relationship } from '../data/types';
 import { TreeScreen } from './TreeScreen';
 import { MemoryCard } from './MemoriesPage';
+import { SpouseDatesFields, emptySpouseDates, spouseDatesFromInput, spouseDatesToInput } from './SpouseDates';
 import { useMemories } from './useMemories';
 import { useTree } from './TreeContext';
 
@@ -123,14 +126,89 @@ interface RelatedItem {
   rel?: Relationship;
 }
 
+/** A spouse's marriage details in place of birth and death, with a way to change them. */
+function MarriageLine({ rel, person, spouse }: { rel: Relationship; person: Person; spouse: Person }) {
+  const { t, lang } = useI18n();
+  const { user } = useAuth();
+  const { current, canEdit, canContribute } = useTree();
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(spouseDatesToInput(rel));
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+  const labels = {
+    married: t('spouseMarried'),
+    divorce: t('spouseDivorce'),
+    separation: t('spouseSeparation'),
+    death: t('spouseDeathOf'),
+    approx: t('fApprox'),
+  };
+  const text = marriageSpan(rel, lang, labels);
+
+  const save = async () => {
+    if (!current || !user) return;
+    setBusy(true);
+    setNote(null);
+    try {
+      const dates = spouseDatesFromInput(value);
+      if (canEdit) {
+        await updateRelationshipDates(current.id, rel.id, dates);
+      } else {
+        const reason = window.prompt(t('suggestReasonPrompt')) ?? '';
+        const nm = (p: Person) => personName(p, lang, t('unknownName'));
+        await proposeEditRelation(
+          current.id,
+          user.uid,
+          user.displayName || user.email || '',
+          rel.id,
+          `${nm(person)} — ${nm(spouse)}`,
+          dates,
+          reason,
+        );
+        setNote(t('suggestSent'));
+      }
+      setEditing(false);
+    } catch {
+      setNote(t('errPermission'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div>
+      <span className="muted small"> {text || lifeSpan(spouse, lang, t('fApprox'))}</span>
+      {canContribute && !editing && (
+        <button type="button" className="link small" onClick={() => setEditing(true)}>
+          {t('spouseEditDates')}
+        </button>
+      )}
+      {editing && (
+        <div className="danger-box">
+          <SpouseDatesFields value={value} onChange={setValue} />
+          <button type="button" className="btn primary small" disabled={busy} onClick={() => void save()}>
+            {t('spouseSaveDates')}
+          </button>
+          <button type="button" className="btn small" onClick={() => setEditing(false)}>
+            {t('mCancel')}
+          </button>
+        </div>
+      )}
+      {note && <p className="msg ok small">{note}</p>}
+    </div>
+  );
+}
+
 function RelatedList({
   title,
   items,
   onRemove,
+  spouseOf,
 }: {
   title: string;
   items: RelatedItem[];
   onRemove?: (rel: Relationship) => void;
+  /** For the list of spouses: the person whose page this is, so marriage details can show. */
+  spouseOf?: Person;
 }) {
   const { t, lang } = useI18n();
   return (
@@ -145,7 +223,8 @@ function RelatedList({
               <Link to={`/home/person/${person.id}`} className="person-link">
                 {personName(person, lang, t('unknownName'))}
               </Link>
-              <span className="muted small"> {lifeSpan(person, lang, t('fApprox'))}</span>
+              {spouseOf && rel ? null : <span className="muted small"> {lifeSpan(person, lang, t('fApprox'))}</span>}
+              {spouseOf && rel && <MarriageLine rel={rel} person={spouseOf} spouse={person} />}
               {rel &&
                 relationshipBadges(rel.kind, rel.status).map((key) => (
                   <span key={key} className="badge">
@@ -173,6 +252,7 @@ function LinkExisting({ person }: { person: Person }) {
   const [otherId, setOtherId] = useState('');
   const [as, setAs] = useState<'parent' | 'child' | 'spouse'>('parent');
   const [kind, setKind] = useState<RelKind>('biological');
+  const [spouseDates, setSpouseDates] = useState(emptySpouseDates());
   const [warnings, setWarnings] = useState<WarningCode[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -203,7 +283,13 @@ function LinkExisting({ person }: { person: Person }) {
     }
     setBusy(true);
     try {
-      const rel = { type, personA: a, personB: b, kind: type === 'parent' ? kind : undefined };
+      const rel = {
+        type,
+        personA: a,
+        personB: b,
+        kind: type === 'parent' ? kind : undefined,
+        ...(type === 'spouse' ? spouseDatesFromInput(spouseDates) : {}),
+      };
       if (canEdit) {
         await addRelationship(current.id, user.uid, rel);
       } else {
@@ -265,6 +351,7 @@ function LinkExisting({ person }: { person: Person }) {
           </select>
         </label>
       )}
+      {as === 'spouse' && <SpouseDatesFields value={spouseDates} onChange={setSpouseDates} />}
       {error && (
         <p className="msg error" role="alert">
           {error}
@@ -471,7 +558,12 @@ function Profile({ person }: { person: Person }) {
       <ContactBox person={person} />
 
       <RelatedList title={t('secParents')} items={parentItems} onRemove={canContribute ? (r) => void onRemove(r) : undefined} />
-      <RelatedList title={t('secSpouses')} items={spouseItems} onRemove={canContribute ? (r) => void onRemove(r) : undefined} />
+      <RelatedList
+        title={t('secSpouses')}
+        items={spouseItems}
+        spouseOf={person}
+        onRemove={canContribute ? (r) => void onRemove(r) : undefined}
+      />
       <RelatedList title={t('secChildren')} items={childItems} onRemove={canContribute ? (r) => void onRemove(r) : undefined} />
       <RelatedList title={t('secSiblings')} items={siblingItems} />
 

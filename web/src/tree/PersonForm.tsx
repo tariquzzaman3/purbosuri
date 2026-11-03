@@ -7,6 +7,7 @@ import { personName } from '../data/format';
 import { KIND_KEYS, VERIFICATION_KEYS } from '../data/labels';
 import type { FlexDate, Person, PersonFields, RelKind, Verification } from '../data/types';
 import { TreeScreen } from './TreeScreen';
+import { SpouseDatesFields, emptySpouseDates, spouseDatesFromInput } from './SpouseDates';
 import { useTree } from './TreeContext';
 
 type As = 'parent' | 'child' | 'spouse';
@@ -189,6 +190,7 @@ function Form({ person }: { person?: Person }) {
     presetAs === 'parent' || presetAs === 'child' || presetAs === 'spouse' ? presetAs : 'child',
   );
   const [kind, setKind] = useState<RelKind>('biological');
+  const [spouseDates, setSpouseDates] = useState(emptySpouseDates());
 
   const [reason, setReason] = useState('');
   const [sent, setSent] = useState(false);
@@ -243,7 +245,12 @@ function Form({ person }: { person?: Person }) {
     setError(null);
     try {
       const relation = otherId
-        ? { existingId: otherId, as, kind: as === 'spouse' ? undefined : kind }
+        ? {
+            existingId: otherId,
+            as,
+            kind: as === 'spouse' ? undefined : kind,
+            ...(as === 'spouse' ? { dates: spouseDatesFromInput(spouseDates) } : {}),
+          }
         : undefined;
       const myName = user.displayName || user.email || '';
       if (!canEdit) {
@@ -314,6 +321,7 @@ function Form({ person }: { person?: Person }) {
                 </select>
               </label>
             )}
+            {as === 'spouse' && <SpouseDatesFields value={spouseDates} onChange={setSpouseDates} />}
           </>
         )}
       </fieldset>

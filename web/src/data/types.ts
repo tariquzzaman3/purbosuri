@@ -82,7 +82,20 @@ export interface Relationship {
   type: RelType;
   kind?: RelKind;
   status?: RelStatus;
+  /** For spouses: the marriage date, and how and when it ended. */
+  startDate?: FlexDate;
+  endDate?: FlexDate;
+  endKind?: EndKind;
   createdBy: string;
+}
+
+export type EndKind = 'divorce' | 'separation' | 'death';
+
+/** What a marriage record adds to a spouse link. */
+export interface SpouseDates {
+  startDate?: FlexDate;
+  endDate?: FlexDate;
+  endKind?: EndKind;
 }
 
 export interface TreeRef {
