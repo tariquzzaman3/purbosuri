@@ -3,8 +3,10 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../auth';
 import { useI18n, type TKey } from '../i18n';
 import {
+  childrenByFamily,
   relationshipWarnings,
   siblingIds,
+  spousesInOrder,
   wouldCreateCycle,
   type WarningCode,
 } from '../data/graph';
@@ -203,42 +205,53 @@ function RelatedList({
   items,
   onRemove,
   spouseOf,
+  groups,
 }: {
   title: string;
   items: RelatedItem[];
   onRemove?: (rel: Relationship) => void;
   /** For the list of spouses: the person whose page this is, so marriage details can show. */
   spouseOf?: Person;
+  /** When given, the items are shown in these named groups (children of each spouse). */
+  groups?: Array<{ label: string; items: RelatedItem[] }>;
 }) {
   const { t, lang } = useI18n();
+
+  const row = ({ person, rel }: RelatedItem) => (
+    <li key={person.id + (rel?.id ?? '')}>
+      <Link to={`/home/person/${person.id}`} className="person-link">
+        {personName(person, lang, t('unknownName'))}
+      </Link>
+      {spouseOf && rel ? null : <span className="muted small"> {lifeSpan(person, lang, t('fApprox'))}</span>}
+      {spouseOf && rel && <MarriageLine rel={rel} person={spouseOf} spouse={person} />}
+      {rel &&
+        relationshipBadges(rel.kind, rel.status).map((key) => (
+          <span key={key} className="badge">
+            {t(key)}
+          </span>
+        ))}
+      {rel && onRemove && (
+        <button type="button" className="link small" onClick={() => onRemove(rel)}>
+          {t('removeRel')}
+        </button>
+      )}
+    </li>
+  );
+
   return (
     <section className="card">
       <h3>{title}</h3>
       {items.length === 0 ? (
         <p className="muted">{t('none')}</p>
+      ) : groups ? (
+        groups.map((g) => (
+          <div key={g.label}>
+            <p className="muted small group-label">{g.label}</p>
+            <ul className="plain-list">{g.items.map(row)}</ul>
+          </div>
+        ))
       ) : (
-        <ul className="plain-list">
-          {items.map(({ person, rel }) => (
-            <li key={person.id + (rel?.id ?? '')}>
-              <Link to={`/home/person/${person.id}`} className="person-link">
-                {personName(person, lang, t('unknownName'))}
-              </Link>
-              {spouseOf && rel ? null : <span className="muted small"> {lifeSpan(person, lang, t('fApprox'))}</span>}
-              {spouseOf && rel && <MarriageLine rel={rel} person={spouseOf} spouse={person} />}
-              {rel &&
-                relationshipBadges(rel.kind, rel.status).map((key) => (
-                  <span key={key} className="badge">
-                    {t(key)}
-                  </span>
-                ))}
-              {rel && onRemove && (
-                <button type="button" className="link small" onClick={() => onRemove(rel)}>
-                  {t('removeRel')}
-                </button>
-              )}
-            </li>
-          ))}
-        </ul>
+        <ul className="plain-list">{items.map(row)}</ul>
       )}
     </section>
   );
@@ -426,16 +439,8 @@ function Profile({ person }: { person: Person }) {
     const p = graph.people.get(rel.personA);
     return p ? [{ person: p, rel }] : [];
   });
-  const childItems: RelatedItem[] = (graph.childRels.get(person.id) ?? []).flatMap((rel) => {
-    const p = graph.people.get(rel.personB);
-    return p ? [{ person: p, rel }] : [];
-  });
-  const spouseItems: RelatedItem[] = rels
-    .filter((r) => r.type === 'spouse' && (r.personA === person.id || r.personB === person.id))
-    .flatMap((rel) => {
-      const p = graph.people.get(rel.personA === person.id ? rel.personB : rel.personA);
-      return p ? [{ person: p, rel }] : [];
-    });
+  const childGroups = childrenByFamily(rels, graph, person.id);
+  const spouseItems: RelatedItem[] = spousesInOrder(rels, graph, person.id);
   const siblingItems: RelatedItem[] = pick(siblingIds(graph, person.id)).map((p) => ({ person: p }));
 
   const onRemove = async (rel: Relationship) => {
@@ -564,7 +569,12 @@ function Profile({ person }: { person: Person }) {
         spouseOf={person}
         onRemove={canContribute ? (r) => void onRemove(r) : undefined}
       />
-      <RelatedList title={t('secChildren')} items={childItems} onRemove={canContribute ? (r) => void onRemove(r) : undefined} />
+      <RelatedList
+        title={t('secChildren')}
+        items={childGroups.flatMap((g) => g.children)}
+        groups={childGroups.length > 1 ? childGroups.map((g) => ({ label: g.spouse ? personName(g.spouse, lang, unknown) : t('childrenOther'), items: g.children })) : undefined}
+        onRemove={canContribute ? (r) => void onRemove(r) : undefined}
+      />
       <RelatedList title={t('secSiblings')} items={siblingItems} />
 
       {canContribute && (

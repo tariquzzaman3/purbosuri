@@ -300,3 +300,66 @@ export function countPeople(forest: UnitNode[]): number {
     0,
   );
 }
+
+const dateKey = (d?: { year?: number; month?: number; day?: number }): number | undefined =>
+  d?.year === undefined ? undefined : d.year * 10000 + (d.month ?? 0) * 100 + (d.day ?? 0);
+
+/**
+ * A person's spouses in order: by the date of marriage when it is known, otherwise in the order
+ * the marriages were recorded. Each spouse comes with the link between them.
+ */
+export function spousesInOrder(rels: Relationship[], g: Graph, personId: string): Array<{ person: Person; rel: Relationship }> {
+  const list = rels
+    .filter((r) => r.type === 'spouse' && (r.personA === personId || r.personB === personId))
+    .flatMap((rel) => {
+      const p = g.people.get(rel.personA === personId ? rel.personB : rel.personA);
+      return p ? [{ person: p, rel }] : [];
+    });
+  return list
+    .map((item, index) => ({ item, index }))
+    .sort((a, b) => {
+      const ka = dateKey(a.item.rel.startDate);
+      const kb = dateKey(b.item.rel.startDate);
+      if (ka !== undefined && kb !== undefined && ka !== kb) return ka - kb;
+      if ((ka === undefined) !== (kb === undefined)) return ka === undefined ? 1 : -1;
+      const sa = a.item.rel.createdAt?.seconds ?? Number.POSITIVE_INFINITY;
+      const sb = b.item.rel.createdAt?.seconds ?? Number.POSITIVE_INFINITY;
+      if (sa !== sb) return sa < sb ? -1 : 1;
+      return a.index - b.index;
+    })
+    .map((x) => x.item);
+}
+
+/** Children by the birth order number first (1 is the eldest), then by birth date and name. */
+export function byBirthOrder(a: Person, b: Person): number {
+  const oa = a.birthOrder ?? Number.POSITIVE_INFINITY;
+  const ob = b.birthOrder ?? Number.POSITIVE_INFINITY;
+  if (oa !== ob) return oa < ob ? -1 : 1;
+  return byBirthThenName(a, b);
+}
+
+export interface ChildGroup {
+  /** The other parent, when one of the spouses is a recorded parent. */
+  spouse?: Person;
+  children: Array<{ person: Person; rel: Relationship }>;
+}
+
+/**
+ * A person's children for the profile: one group for each spouse (spouses in order), each group
+ * by birth order, and the children whose other parent is not recorded last.
+ */
+export function childrenByFamily(rels: Relationship[], g: Graph, personId: string): ChildGroup[] {
+  const spouses = spousesInOrder(rels, g, personId);
+  const groups: ChildGroup[] = spouses.map((s) => ({ spouse: s.person, children: [] }));
+  const own: ChildGroup = { children: [] };
+
+  for (const rel of g.childRels.get(personId) ?? []) {
+    const child = g.people.get(rel.personB);
+    if (!child) continue;
+    const parents = new Set((g.parentRels.get(child.id) ?? []).map((r) => r.personA));
+    const index = spouses.findIndex((s) => parents.has(s.person.id));
+    (index >= 0 ? groups[index] : own).children.push({ person: child, rel });
+  }
+  for (const group of [...groups, own]) group.children.sort((a, b) => byBirthOrder(a.person, b.person));
+  return [...groups.filter((x) => x.children.length > 0), ...(own.children.length > 0 ? [own] : [])];
+}
