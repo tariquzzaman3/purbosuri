@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth';
 import { useI18n, type TKey } from '../i18n';
 import { addPerson, proposeAddPerson, proposeEditPerson, updatePerson } from '../data/mutations';
-import { personName } from '../data/format';
+import { num, personName } from '../data/format';
 import { KIND_KEYS, VERIFICATION_KEYS } from '../data/labels';
 import type { FlexDate, Person, PersonFields, RelKind, Verification } from '../data/types';
 import { TreeScreen } from './TreeScreen';
@@ -177,7 +177,9 @@ function Form({ person }: { person?: Person }) {
   const [status, setStatus] = useState<Status>(statusOf(person));
   const [birth, setBirth] = useState<DateInput>(person ? fromDate(person.birth) : emptyDate());
   const [death, setDeath] = useState<DateInput>(person ? fromDate(person.death) : emptyDate());
-  const [birthOrder, setBirthOrder] = useState(person?.birthOrder?.toString() ?? '');
+  // Untouched (null) while adding a person: a new child is suggested the next number after the
+  // children already there. Whatever the editor types replaces it.
+  const [birthOrder, setBirthOrder] = useState<string | null>(person ? (person.birthOrder?.toString() ?? '') : null);
   const [birthPlace, setBirthPlace] = useState(person?.birthPlace ?? '');
   const [residence, setResidence] = useState(person?.residence ?? '');
   const [deathPlace, setDeathPlace] = useState(person?.deathPlace ?? '');
@@ -197,6 +199,10 @@ function Form({ person }: { person?: Person }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const suggestedOrder =
+    !person && otherId && as === 'child' ? num((graph.childRels.get(otherId)?.length ?? 0) + 1, lang) : '';
+  const orderShown = birthOrder ?? suggestedOrder;
+
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!current || !user) return;
@@ -210,7 +216,7 @@ function Form({ person }: { person?: Person }) {
 
     // Birth order is optional: 1 to 30, Bangla or English digits.
     let order: number | undefined;
-    const orderText = asciiDigits(birthOrder);
+    const orderText = asciiDigits(orderShown);
     if (orderText) {
       order = Number(orderText);
       if (!Number.isInteger(order) || order < 1 || order > 30) {
@@ -367,7 +373,7 @@ function Form({ person }: { person?: Person }) {
             type="text"
             inputMode="numeric"
             maxLength={2}
-            value={birthOrder}
+            value={orderShown}
             onChange={(e) => setBirthOrder(e.target.value)}
           />
         </label>
