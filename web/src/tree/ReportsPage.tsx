@@ -84,7 +84,7 @@ function InboxCard({ r, treeId }: { r: Report; treeId: string }) {
 export function ReportsPage() {
   const { t } = useI18n();
   const { user } = useAuth();
-  const { current, canEdit, ready, role } = useTree();
+  const { current, canEdit, ready, role, myName } = useTree();
   const treeId = current?.id;
   const mine = useReports(treeId, user?.uid, false);
   const inbox = useReports(treeId, user?.uid, true);
@@ -101,7 +101,7 @@ export function ReportsPage() {
     setBusy(true);
     setNote(null);
     try {
-      await submitReport(treeId, user.uid, user.displayName || user.email || '', category, text);
+      await submitReport(treeId, user.uid, myName, category, text);
       setText('');
       setNote(t('rpSent'));
     } catch {

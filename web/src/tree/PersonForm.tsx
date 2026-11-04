@@ -160,7 +160,7 @@ function statusOf(p?: Person): Status {
 function Form({ person }: { person?: Person }) {
   const { t, lang } = useI18n();
   const { user } = useAuth();
-  const { current, people, graph, canEdit } = useTree();
+  const { current, people, graph, canEdit, myName } = useTree();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const unknown = t('unknownName');
@@ -258,7 +258,6 @@ function Form({ person }: { person?: Person }) {
             ...(as === 'spouse' ? { dates: spouseDatesFromInput(spouseDates) } : {}),
           }
         : undefined;
-      const myName = user.displayName || user.email || '';
       if (!canEdit) {
         // A participant only suggests; an admin decides.
         if (person) {

@@ -132,7 +132,7 @@ interface RelatedItem {
 function MarriageLine({ rel, person, spouse }: { rel: Relationship; person: Person; spouse: Person }) {
   const { t, lang } = useI18n();
   const { user } = useAuth();
-  const { current, canEdit, canContribute } = useTree();
+  const { current, canEdit, canContribute, myName } = useTree();
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(spouseDatesToInput(rel));
   const [busy, setBusy] = useState(false);
@@ -160,7 +160,7 @@ function MarriageLine({ rel, person, spouse }: { rel: Relationship; person: Pers
         await proposeEditRelation(
           current.id,
           user.uid,
-          user.displayName || user.email || '',
+          myName,
           rel.id,
           `${nm(person)} — ${nm(spouse)}`,
           dates,
@@ -260,7 +260,7 @@ function RelatedList({
 function LinkExisting({ person }: { person: Person }) {
   const { t, lang } = useI18n();
   const { user } = useAuth();
-  const { current, people, graph, canEdit } = useTree();
+  const { current, people, graph, canEdit, myName } = useTree();
   const [sentNote, setSentNote] = useState(false);
   const [otherId, setOtherId] = useState('');
   const [as, setAs] = useState<'parent' | 'child' | 'spouse'>('parent');
@@ -314,7 +314,7 @@ function LinkExisting({ person }: { person: Person }) {
         await proposeAddRelation(
           current.id,
           user.uid,
-          user.displayName || user.email || '',
+          myName,
           rel,
           `${nm(a)} → ${nm(b)} (${type})`,
           reason,
@@ -424,13 +424,12 @@ function PersonMemories({ personId }: { personId: string }) {
 function Profile({ person }: { person: Person }) {
   const { t, lang } = useI18n();
   const navigate = useNavigate();
-  const { current, graph, rels, canContribute, canEdit } = useTree();
+  const { current, graph, rels, canContribute, canEdit, myName } = useTree();
   const unknown = t('unknownName');
   const approx = t('fApprox');
   const { user } = useAuth();
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
-  const myName = user?.displayName || user?.email || '';
 
   const pick = (ids: string[]): Person[] =>
     ids.map((id) => graph.people.get(id)).filter((p): p is Person => p !== undefined);

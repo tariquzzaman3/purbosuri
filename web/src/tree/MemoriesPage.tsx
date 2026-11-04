@@ -32,7 +32,7 @@ const fromInputDate = (s: string): FlexDate | undefined => {
 function Composer({ editing, onDone, collapsible = false }: { editing?: Memory; onDone: () => void; collapsible?: boolean }) {
   const { t, lang } = useI18n();
   const { user } = useAuth();
-  const { current, people, canEdit } = useTree();
+  const { current, people, canEdit, myName } = useTree();
   const [title, setTitle] = useState(editing?.title ?? '');
   const [body, setBody] = useState(editing?.body ?? '');
   const [date, setDate] = useState(toInputDate(editing?.date));
@@ -61,7 +61,7 @@ function Composer({ editing, onDone, collapsible = false }: { editing?: Memory; 
     const fields = { title, body, personIds: ids, date: fromInputDate(date), place };
     try {
       if (editing) await updateMemory(current.id, editing.id, canEdit, fields);
-      else await createMemory(current.id, user.uid, user.displayName || user.email || '', canEdit, fields);
+      else await createMemory(current.id, user.uid, myName, canEdit, fields);
       if (editing) {
         onDone();
         return;
@@ -171,7 +171,7 @@ const REACTIONS: Array<{ id: ReactionType; emoji: string; label: TKey }> = [
 function Comments({ treeId, memoryId, canWrite }: { treeId: string; memoryId: string; canWrite: boolean }) {
   const { t, lang } = useI18n();
   const { user } = useAuth();
-  const { canEdit } = useTree();
+  const { canEdit, myName } = useTree();
   const comments = useComments(treeId, memoryId, true);
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
@@ -182,7 +182,7 @@ function Comments({ treeId, memoryId, canWrite }: { treeId: string; memoryId: st
     setBusy(true);
     setError(false);
     try {
-      await addComment(treeId, memoryId, user.uid, user.displayName || user.email || '', text);
+      await addComment(treeId, memoryId, user.uid, myName, text);
       setText('');
     } catch {
       setError(true);

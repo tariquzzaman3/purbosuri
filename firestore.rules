@@ -50,6 +50,12 @@ service cloud.firestore {
       return isMember(treeId) && myRole(treeId) == 'owner';
     }
 
+    // The name recorded for me in this tree when I was let in. Names shown on stories,
+    // comments, reports and suggestions must be this one, so nobody can post as someone else.
+    function myName(treeId) {
+      return get(memberDoc(treeId, request.auth.uid)).data.displayName;
+    }
+
     function isReviewer(treeId) {
       return isMember(treeId) && myRole(treeId) in ['owner', 'reviewer'];
     }
@@ -542,6 +548,7 @@ service cloud.firestore {
         allow create: if canContribute(treeId)
           && validMemory(request.resource.data)
           && request.resource.data.authorUid == request.auth.uid
+          && request.resource.data.get('authorName', myName(treeId)) == myName(treeId)
           && request.resource.data.createdAt == request.time
           && (request.resource.data.status == 'pending' || isReviewer(treeId));
 
@@ -549,6 +556,7 @@ service cloud.firestore {
         allow update: if canContribute(treeId)
           && validMemory(request.resource.data)
           && request.resource.data.authorUid == resource.data.authorUid
+          && request.resource.data.get('authorName', null) == resource.data.get('authorName', null)
           && request.resource.data.createdAt == resource.data.createdAt
           && (isReviewer(treeId)
               || (resource.data.authorUid == request.auth.uid && request.resource.data.status == 'pending'));
@@ -587,6 +595,7 @@ service cloud.firestore {
             && request.resource.data.keys().hasAll(['authorUid', 'text', 'createdAt'])
             && request.resource.data.authorUid == request.auth.uid
             && optString(request.resource.data, 'authorName', 100)
+            && request.resource.data.get('authorName', myName(treeId)) == myName(treeId)
             && request.resource.data.text is string
             && request.resource.data.text.size() > 0
             && request.resource.data.text.size() <= 2000
@@ -656,6 +665,7 @@ service cloud.firestore {
           && request.resource.data.text.size() <= 5000
           && request.resource.data.category in ['problem', 'contact']
           && optString(request.resource.data, 'reporterName', 100)
+          && request.resource.data.get('reporterName', myName(treeId)) == myName(treeId)
           && request.resource.data.reporterUid == request.auth.uid
           && request.resource.data.status == 'open'
           && request.resource.data.createdAt == request.time;
@@ -689,6 +699,7 @@ service cloud.firestore {
           && (!('payload' in request.resource.data)
               || (request.resource.data.payload is map && request.resource.data.payload.keys().size() <= 40))
           && optString(request.resource.data, 'proposerName', 100)
+          && request.resource.data.get('proposerName', myName(treeId)) == myName(treeId)
           && optString(request.resource.data, 'targetName', 200)
           && request.resource.data.targetType in ['person', 'relationship', 'memory', 'media']
           && request.resource.data.targetId is string

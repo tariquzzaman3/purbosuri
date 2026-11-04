@@ -1164,6 +1164,76 @@ describe('reactions and comments on stories', () => {
   });
 });
 
+describe('nobody can post under another member’s name', () => {
+  it('a story, comment, report or suggestion must carry the sender’s own recorded name', async () => {
+    const story = (name: string) => ({
+      body: 'গল্প',
+      authorUid: 'carl',
+      authorName: name,
+      status: 'pending',
+      createdAt: serverTimestamp(),
+    });
+    await assertSucceeds(setDoc(doc(db('carl'), 'trees/treeA/memories/n1'), story('carl')));
+    await assertFails(setDoc(doc(db('carl'), 'trees/treeA/memories/n2'), story('alice')));
+
+    const report = (name: string) => ({
+      text: 'x',
+      category: 'problem',
+      reporterUid: 'carl',
+      reporterName: name,
+      status: 'open',
+      createdAt: serverTimestamp(),
+    });
+    await assertSucceeds(setDoc(doc(db('carl'), 'trees/treeA/reports/n1'), report('carl')));
+    await assertFails(setDoc(doc(db('carl'), 'trees/treeA/reports/n2'), report('alice')));
+
+    const suggestion = (name: string) => ({
+      kind: 'editPerson',
+      targetType: 'person',
+      targetId: 'p1',
+      proposerName: name,
+      reason: 'r',
+      payload: {},
+      status: 'pending',
+      proposedBy: 'carl',
+      createdAt: serverTimestamp(),
+    });
+    await assertSucceeds(setDoc(doc(db('carl'), 'trees/treeA/proposals/n1'), suggestion('carl')));
+    await assertFails(setDoc(doc(db('carl'), 'trees/treeA/proposals/n2'), suggestion('alice')));
+
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'trees/treeA/memories/n3'), {
+        body: 'গল্প',
+        authorUid: 'carl',
+        status: 'published',
+        createdAt: Timestamp.now(),
+      });
+    });
+    const comment = (name: string) => ({
+      authorUid: 'carl',
+      authorName: name,
+      text: 'ভালো',
+      createdAt: serverTimestamp(),
+    });
+    await assertSucceeds(setDoc(doc(db('carl'), 'trees/treeA/memories/n3/comments/c1'), comment('carl')));
+    await assertFails(setDoc(doc(db('carl'), 'trees/treeA/memories/n3/comments/c2'), comment('rita')));
+  });
+
+  it('an author name on a story cannot be rewritten later', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'trees/treeA/memories/n4'), {
+        body: 'গল্প',
+        authorUid: 'carl',
+        authorName: 'carl',
+        status: 'pending',
+        createdAt: Timestamp.now(),
+      });
+    });
+    await assertFails(updateDoc(doc(db('carl'), 'trees/treeA/memories/n4'), { authorName: 'alice' }));
+    await assertSucceeds(updateDoc(doc(db('rita'), 'trees/treeA/memories/n4'), { body: 'সংশোধিত' }));
+  });
+});
+
 describe('email verification', () => {
   const asPassword = (uid: string, verified: boolean): Db =>
     env.authenticatedContext(uid, { email_verified: verified, firebase: { sign_in_provider: 'password' } }).firestore();
