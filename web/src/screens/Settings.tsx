@@ -178,6 +178,20 @@ export function SettingsPage() {
         </div>
 
         <div className="set-row">
+          <span className="set-label">{t('setRotation')}</span>
+          <Choice<'portrait' | 'auto'>
+            name={t('setRotation')}
+            value={s.rotation}
+            options={[
+              { id: 'portrait', text: t('setRotationPortrait') },
+              { id: 'auto', text: t('setRotationAuto') },
+            ]}
+            onChange={(rotation) => s.set({ rotation })}
+          />
+          <p className="muted small">{t('setRotationHelp')}</p>
+        </div>
+
+        <div className="set-row">
           <span className="set-label">{t('setFontSize')}</span>
           <Choice<TextSize>
             name={t('setFontSize')}

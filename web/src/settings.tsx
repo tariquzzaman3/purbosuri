@@ -34,12 +34,14 @@ export interface SettingsState {
   enFont: (typeof EN_FONTS)[number]['id'];
   /** The person's own main colour, as #rrggbb. Empty means the standard green. */
   color: string;
+  /** Installed app: stay upright, or turn with the phone when the phone's rotation is on. */
+  rotation: 'portrait' | 'auto';
 }
 
 /** Ready-made colours to pick from; the person can also choose any colour. */
 export const COLOR_CHOICES = ['#1d5a45', '#1f5f99', '#6b3fa0', '#a3365f', '#b5532f', '#2a7a86'] as const;
 
-const DEFAULTS: SettingsState = { theme: 'system', size: 'normal', bnFont: 'noto-sans', enFont: 'system', color: '' };
+const DEFAULTS: SettingsState = { theme: 'system', size: 'normal', bnFont: 'noto-sans', enFont: 'system', color: '', rotation: 'portrait' };
 const KEY = 'purbosuri.settings';
 
 function read(): SettingsState {
@@ -53,6 +55,7 @@ function read(): SettingsState {
       bnFont: BN_FONTS.some((f) => f.id === v.bnFont) ? (v.bnFont as SettingsState['bnFont']) : DEFAULTS.bnFont,
       enFont: EN_FONTS.some((f) => f.id === v.enFont) ? (v.enFont as SettingsState['enFont']) : DEFAULTS.enFont,
       color: typeof v.color === 'string' && /^#[0-9a-f]{6}$/i.test(v.color) ? v.color : '',
+      rotation: v.rotation === 'auto' ? 'auto' : 'portrait',
     };
   } catch {
     return DEFAULTS;
@@ -100,6 +103,23 @@ export function colorVariables(hex: string, dark: boolean): { primary: string; i
 const prefersDark = (): boolean =>
   typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
 
+type LockApi = { lock?: (o: string) => Promise<void>; unlock?: () => void };
+const lockApi = (): LockApi | undefined =>
+  typeof screen === 'undefined' ? undefined : (screen.orientation as unknown as LockApi | undefined);
+
+/**
+ * Put the screen back to the person's choice: upright, or following the phone's own rotation
+ * switch ('any' still respects the phone's rotation lock). In a plain browser tab, or where
+ * the browser does not allow it, nothing happens and the page just follows the phone.
+ */
+export async function restoreRotation(rotation: SettingsState['rotation']): Promise<void> {
+  try {
+    await lockApi()?.lock?.(rotation === 'auto' ? 'any' : 'portrait');
+  } catch {
+    // Not allowed here (for example a normal browser tab): nothing to undo.
+  }
+}
+
 function applyToPage(s: SettingsState) {
   const root = document.documentElement;
   if (s.color) {
@@ -129,6 +149,10 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     mq.addEventListener('change', again);
     return () => mq.removeEventListener('change', again);
   }, [state]);
+
+  useEffect(() => {
+    void restoreRotation(state.rotation);
+  }, [state.rotation]);
 
   useEffect(() => {
     try {
