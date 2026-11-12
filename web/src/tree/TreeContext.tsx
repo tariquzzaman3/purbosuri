@@ -36,6 +36,8 @@ interface TreeValue {
   settings: TreeSettings;
   /** The person in the tree that I am, once an admin has linked me. */
   myPersonId: string | null;
+  /** My name in this tree, as recorded when I was let in. Posts must carry exactly this name. */
+  myName: string;
   /** Whether I may create invitations in this tree. */
   canInvite: boolean;
   /** Join requests waiting for a decision (managers and admins only). */
@@ -76,6 +78,7 @@ export function TreeProvider({ children }: { children: ReactNode }) {
 
   const [role, setRole] = useState<Role | null>(null);
   const [myPersonId, setMyPersonId] = useState<string | null>(null);
+  const [myName, setMyName] = useState('');
   const [joinRequests, setJoinRequests] = useState<JoinRequest[]>([]);
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [people, setPeople] = useState<Person[]>([]);
@@ -226,6 +229,7 @@ export function TreeProvider({ children }: { children: ReactNode }) {
         (snap) => {
           setRole(snap.exists() ? (snap.data().role as Role) : null);
           setMyPersonId(snap.exists() && typeof snap.data().personId === 'string' ? snap.data().personId : null);
+          setMyName(snap.exists() ? String(snap.data().displayName ?? '') : '');
           roleLoaded = true;
           check();
         },
@@ -317,6 +321,7 @@ export function TreeProvider({ children }: { children: ReactNode }) {
       graph,
       settings,
       myPersonId,
+      myName,
       canInvite,
       joinRequests,
       proposals,
@@ -339,6 +344,7 @@ export function TreeProvider({ children }: { children: ReactNode }) {
       graph,
       settings,
       myPersonId,
+      myName,
       canInvite,
       joinRequests,
       proposals,

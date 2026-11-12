@@ -10,6 +10,9 @@ on:
     paths:
       - 'web/**'
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -28,6 +31,11 @@ jobs:
 
       - name: Unit tests
         run: npm test
+
+      # Informational: lists known vulnerabilities in the packages the web app ships.
+      - name: Check packages for known vulnerabilities
+        continue-on-error: true
+        run: npm audit --omit=dev --audit-level=moderate
 
       - name: Type check and build
         run: npm run build

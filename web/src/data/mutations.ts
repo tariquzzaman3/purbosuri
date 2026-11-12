@@ -531,7 +531,7 @@ export async function submitReport(
     text: text.trim().slice(0, 5000),
     category,
     reporterUid: uid,
-    reporterName: (name || 'Member').slice(0, 100),
+    reporterName: name.slice(0, 100),
     status: 'open',
     createdAt: serverTimestamp(),
   });
@@ -585,7 +585,7 @@ async function submitProposal(
     targetType: p.targetType,
     targetId: p.targetId ?? '',
     ...(p.targetName ? { targetName: p.targetName.slice(0, 200) } : {}),
-    proposerName: (proposerName || 'Member').slice(0, 100),
+    proposerName: proposerName.slice(0, 100),
     reason: p.reason.trim().slice(0, 5000),
     payload: p.payload,
     status: 'pending',
@@ -803,7 +803,7 @@ export async function createMemory(
   await setDoc(doc(collection(d, 'trees', treeId, 'memories')), {
     ...memoryData(fields),
     authorUid: uid,
-    authorName: (authorName || 'Member').slice(0, 100),
+    authorName: authorName.slice(0, 100),
     status: isAdmin ? 'published' : 'pending',
     createdAt: serverTimestamp(),
   });
@@ -870,7 +870,7 @@ export async function addComment(
 ): Promise<void> {
   await setDoc(doc(collection(database(), 'trees', treeId, 'memories', memoryId, 'comments')), {
     authorUid: uid,
-    authorName: (name || 'Member').slice(0, 100),
+    authorName: name.slice(0, 100),
     text: text.trim().slice(0, 2000),
     createdAt: serverTimestamp(),
   });

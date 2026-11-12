@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../auth';
 import { useI18n, type TKey } from '../i18n';
-import { formatDate, marriageSpan, num } from '../data/format';
+import { formatDate, marriageSpan, num, personName } from '../data/format';
 import { VERIFICATION_KEYS } from '../data/labels';
 import { approveProposal, rejectProposal, type Proposal, type ProposalKind } from '../data/mutations';
 import type { FlexDate, Person, SpouseDates, Verification } from '../data/types';
@@ -69,6 +69,8 @@ function ReviewCard({ p }: { p: Proposal }) {
     relation?: { existingId: string; as: string; dates?: SpouseDates };
     changes?: Record<string, unknown>;
     dates?: SpouseDates;
+    rel?: { personA?: string; personB?: string; type?: string };
+    relId?: string;
   };
   const before: Person | undefined = p.targetId ? graph.people.get(p.targetId) : undefined;
   const suggested: Record<string, unknown> = p.kind === 'addPerson' ? payload.fields ?? {} : payload.changes ?? {};
@@ -107,6 +109,20 @@ function ReviewCard({ p }: { p: Proposal }) {
     approx: t('fApprox'),
   };
   const datesText = marriageSpan(payload.dates ?? payload.relation?.dates ?? {}, lang, marriageLabels);
+  // What the suggestion really touches, worked out from the records themselves. The label the
+  // sender typed is never trusted: it could say one thing while the change does another.
+  const nm = (id?: string) => {
+    const x = id ? graph.people.get(id) : undefined;
+    return x ? personName(x, lang, t('unknownName')) : '—';
+  };
+  const relIdOf = p.kind === 'removeRelation' || p.kind === 'editRelation' ? payload.relId ?? p.targetId : undefined;
+  const relOf = relIdOf ? rels.find((r) => r.id === relIdOf) : undefined;
+  let heading = p.targetName || '—';
+  if (p.kind === 'editPerson' || p.kind === 'deletePerson') heading = before ? nm(before.id) : '—';
+  else if (p.kind === 'addRelation' && payload.rel) heading = `${nm(payload.rel.personA)} → ${nm(payload.rel.personB)} (${payload.rel.type ?? ''})`;
+  else if (relOf) heading = `${nm(relOf.personA)} — ${nm(relOf.personB)} (${relOf.type})`;
+  else if (p.kind === 'removeRelation' || p.kind === 'editRelation') heading = '—';
+
   const nameRows = Object.keys(suggested).filter((k) => NAME_FIELDS.includes(k));
   const otherRows = Object.keys(suggested).filter((k) => !NAME_FIELDS.includes(k));
   const relTarget = payload.relation ? graph.people.get(payload.relation.existingId) : undefined;
@@ -115,7 +131,7 @@ function ReviewCard({ p }: { p: Proposal }) {
     <li className="tree-item">
       <div className="tree-item-head">
         <span className="badge role">{t(KIND_KEYS[p.kind])}</span>
-        <strong>{p.targetName || (before ? before.nameBn || before.nameEn : '') || '—'}</strong>
+        <strong>{heading}</strong>
       </div>
       <p className="muted small">
         {t('apBy')}: {p.proposerName || '—'}
