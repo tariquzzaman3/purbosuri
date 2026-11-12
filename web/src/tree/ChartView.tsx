@@ -9,7 +9,7 @@ import {
 } from 'react';
 import { Link } from 'react-router-dom';
 import { useI18n } from '../i18n';
-import { useSettings } from '../settings';
+import { restoreRotation, useSettings } from '../settings';
 import { buildForest, findUnit } from '../data/graph';
 import { CARD_H, CARD_W, layoutForest } from '../data/layout';
 import { lifeSpan, marriageSpan, num, personName } from '../data/format';
@@ -130,7 +130,7 @@ function Chart() {
   const { graph, people, rels } = useTree();
   const unknown = t('unknownName');
   const approx = t('fApprox');
-  const { fontSignature } = useSettings();
+  const { fontSignature, rotation } = useSettings();
   const fontsReady = useFontsReady(fontSignature);
 
   const forest = useMemo(() => buildForest(graph), [graph]);
@@ -252,17 +252,13 @@ function Chart() {
 
   const exitFull = useCallback(async () => {
     setFull(false);
-    try {
-      orientation()?.unlock?.();
-    } catch {
-      // Not supported: nothing to undo.
-    }
+    void restoreRotation(rotation);
     try {
       if (document.fullscreenElement) await document.exitFullscreen();
     } catch {
       // Already closed.
     }
-  }, []);
+  }, [rotation]);
 
   useEffect(() => {
     if (!full) return;
@@ -293,13 +289,15 @@ function Chart() {
     return () => window.cancelAnimationFrame(id);
   }, [full, fit]);
 
-  const canRotate = full && typeof orientation()?.lock === 'function';
+  // The rotate button works in full screen, and also in the installed app, which is not a browser tab.
+  const installed = typeof window !== 'undefined' && !!window.matchMedia?.('(display-mode: standalone)').matches;
+  const canRotate = (full || installed) && typeof orientation()?.lock === 'function';
 
   const rotate = async () => {
     const o = orientation();
-    const next = o?.type?.startsWith('landscape') ? 'portrait' : 'landscape';
     try {
-      await o?.lock?.(next);
+      if (o?.type?.startsWith('landscape')) await restoreRotation(rotation);
+      else await o?.lock?.('landscape');
     } catch {
       setNotice(t('chartRotateFail'));
       window.setTimeout(() => setNotice(null), 4000);
