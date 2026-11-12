@@ -44,6 +44,8 @@ export const memoriesBn = {
 
   spouseDatesTitle: 'বিবাহের তথ্য (ঐচ্ছিক)',
   spouseMarriage: 'বিবাহের তারিখ',
+  spouseOrder: 'বিবাহের ক্রম',
+  spouseOrderHint: '১ মানে প্রথম বিবাহ। নতুন বিবাহ যোগ করলে পরের সংখ্যা নিজে থেকে বসে, দরকার হলে বদলান।',
   spouseEnded: 'বিবাহ কীভাবে শেষ হয়েছে',
   spouseNotEnded: 'শেষ হয়নি',
   spouseDivorce: 'বিবাহবিচ্ছেদ',
@@ -121,6 +123,8 @@ export const memoriesEn: typeof memoriesBn = {
 
   spouseDatesTitle: 'Marriage details (optional)',
   spouseMarriage: 'Date of marriage',
+  spouseOrder: 'Marriage order',
+  spouseOrderHint: '1 means the first marriage. When you add a marriage the next number is filled in; change it if needed.',
   spouseEnded: 'How the marriage ended',
   spouseNotEnded: 'Has not ended',
   spouseDivorce: 'Divorce',

@@ -1592,3 +1592,18 @@ input[type='color'].color-custom {
 .list-scroll .row-body {
   min-width: max-content;
 }
+
+/* The chart's glass panels are light in every theme, so they keep the light-theme colours. */
+.chart-glass,
+.chart-select,
+.chart-notice,
+.glass-btn {
+  --ink: #2b2a26;
+  --muted: #5f5b52;
+  --line: #e4dccb;
+  --primary: #1d5a45;
+  --accent: #b5532f;
+  --error: #a5281b;
+  --ok: #1d6a3a;
+  color: var(--ink);
+}

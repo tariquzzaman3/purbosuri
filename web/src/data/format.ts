@@ -17,7 +17,11 @@ const MONTHS: Record<Lang, string[]> = {
 export function personName(p: Person, lang: Lang, unknown: string): string {
   const first = lang === 'bn' ? p.nameBn : p.nameEn;
   const second = lang === 'bn' ? p.nameEn : p.nameBn;
-  return first?.trim() || second?.trim() || p.nickname?.trim() || unknown;
+  const name = first?.trim() || second?.trim();
+  const nick = p.nickname?.trim();
+  if (!name) return nick || unknown;
+  // "Certificate name (nickname)"; no brackets when there is no nickname.
+  return nick && nick !== name ? `${name} (${nick})` : name;
 }
 
 /**
