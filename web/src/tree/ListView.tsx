@@ -195,6 +195,7 @@ function ListContent() {
           </ul>
         )
       ) : (
+        <div className="list-scroll">
         <ul className="list-root">
           {forest.map((node) => (
             <Row
@@ -207,6 +208,7 @@ function ListContent() {
             />
           ))}
         </ul>
+      </div>
       )}
     </section>
   );
