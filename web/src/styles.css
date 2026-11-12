@@ -1571,3 +1571,24 @@ input[type='color'].color-custom {
   margin: 8px 0 2px;
   font-weight: 700;
 }
+
+/* The list can be slid left and right: each generation steps in, so deep branches are wide. */
+.list-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 12px;
+}
+
+.list-scroll > .list-root {
+  width: max-content;
+  min-width: 100%;
+}
+
+.list-scroll .row-main {
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+
+.list-scroll .row-body {
+  min-width: max-content;
+}
