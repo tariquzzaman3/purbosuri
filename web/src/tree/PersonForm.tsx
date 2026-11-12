@@ -202,6 +202,9 @@ function Form({ person }: { person?: Person }) {
   const suggestedOrder =
     !person && otherId && as === 'child' ? num((graph.childRels.get(otherId)?.length ?? 0) + 1, lang) : '';
   const orderShown = birthOrder ?? suggestedOrder;
+  // A new spouse is suggested the next marriage number after the spouses already there.
+  const suggestedMarriage =
+    !person && otherId && as === 'spouse' ? num((graph.spouses.get(otherId)?.size ?? 0) + 1, lang) : '';
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -255,7 +258,7 @@ function Form({ person }: { person?: Person }) {
             existingId: otherId,
             as,
             kind: as === 'spouse' ? undefined : kind,
-            ...(as === 'spouse' ? { dates: spouseDatesFromInput(spouseDates) } : {}),
+            ...(as === 'spouse' ? { dates: spouseDatesFromInput(spouseDates, suggestedMarriage) } : {}),
           }
         : undefined;
       if (!canEdit) {
@@ -326,7 +329,7 @@ function Form({ person }: { person?: Person }) {
                 </select>
               </label>
             )}
-            {as === 'spouse' && <SpouseDatesFields value={spouseDates} onChange={setSpouseDates} />}
+            {as === 'spouse' && <SpouseDatesFields value={spouseDates} onChange={setSpouseDates} suggestedOrder={suggestedMarriage} />}
           </>
         )}
       </fieldset>
@@ -365,6 +368,7 @@ function Form({ person }: { person?: Person }) {
         </label>
 
         <DateFields label={t('fBirth')} value={birth} onChange={setBirth} />
+        {(person || as !== 'spouse' || !otherId) && (
         <label className="field">
           <span>{t('fBirthOrder')}</span>
           <small>{t('fBirthOrderHint')}</small>
@@ -376,6 +380,7 @@ function Form({ person }: { person?: Person }) {
             onChange={(e) => setBirthOrder(e.target.value)}
           />
         </label>
+        )}
         {status !== 'living' && <DateFields label={t('fDeath')} value={death} onChange={setDeath} />}
 
         <TextField label={t('fBirthPlace')} value={birthPlace} onChange={setBirthPlace} max={300} />

@@ -86,6 +86,8 @@ export interface Relationship {
   startDate?: FlexDate;
   endDate?: FlexDate;
   endKind?: EndKind;
+  /** For spouses: 1 for the first marriage, 2 for the second, and so on. */
+  marriageOrder?: number;
   createdBy: string;
   /** When the link was recorded (as stored by the database); used to keep spouses in the order added. */
   createdAt?: { seconds?: number };
@@ -98,6 +100,7 @@ export interface SpouseDates {
   startDate?: FlexDate;
   endDate?: FlexDate;
   endKind?: EndKind;
+  marriageOrder?: number;
 }
 
 export interface TreeRef {

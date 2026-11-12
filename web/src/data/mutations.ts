@@ -58,6 +58,7 @@ export interface NewRelationship {
   startDate?: FlexDate;
   endDate?: FlexDate;
   endKind?: EndKind;
+  marriageOrder?: number;
 }
 
 function relationshipData(uid: string, rel: NewRelationship) {
@@ -248,6 +249,7 @@ function datesPatch(dates: SpouseDates): Record<string, unknown> {
     startDate: clearedOr(dates.startDate && Object.keys(dates.startDate).length > 0 ? dates.startDate : undefined),
     endDate: clearedOr(dates.endDate && Object.keys(dates.endDate).length > 0 ? dates.endDate : undefined),
     endKind: clearedOr(dates.endKind),
+    marriageOrder: clearedOr(dates.marriageOrder),
   };
 }
 

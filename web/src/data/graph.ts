@@ -318,6 +318,11 @@ export function spousesInOrder(rels: Relationship[], g: Graph, personId: string)
   return list
     .map((item, index) => ({ item, index }))
     .sort((a, b) => {
+      // The marriage order, when written, comes first; the rest follow by date then by when added.
+      const oa = a.item.rel.marriageOrder;
+      const ob = b.item.rel.marriageOrder;
+      if (oa !== undefined && ob !== undefined && oa !== ob) return oa - ob;
+      if ((oa === undefined) !== (ob === undefined)) return oa === undefined ? 1 : -1;
       const ka = dateKey(a.item.rel.startDate);
       const kb = dateKey(b.item.rel.startDate);
       if (ka !== undefined && kb !== undefined && ka !== kb) return ka - kb;

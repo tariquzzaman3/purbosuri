@@ -480,6 +480,17 @@ describe('profile order of spouses and children', () => {
     expect(spousesInOrder(rels, g, 'dad').map((s) => s.person.id)).toEqual(['w1', 'w2', 'w3']);
   });
 
+  it('puts a written marriage order before the date and the order recorded', () => {
+    const rels = [
+      spouse('dad', 'w1', { startDate: { year: 1990 } }),
+      spouse('dad', 'w2', { marriageOrder: 1 }),
+      spouse('dad', 'w3', { marriageOrder: 2 }),
+    ];
+    const g = buildGraph([person('dad'), person('w1'), person('w2'), person('w3')], rels);
+    expect(spousesInOrder(rels, g, 'dad').map((s) => s.person.id)).toEqual(['w2', 'w3', 'w1']);
+  });
+
+
   it('groups children under each spouse in that order, with unknown other parent last', () => {
     const dad = person('dad');
     const w1 = person('w1');

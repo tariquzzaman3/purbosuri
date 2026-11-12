@@ -1,13 +1,19 @@
 import { useI18n } from '../i18n';
 import type { EndKind, FlexDate, SpouseDates } from '../data/types';
 
+/** Accepts Bangla digits as well as 0-9. */
+const asciiDigits = (s: string): string =>
+  s.replace(/[০-৯]/g, (ch) => String(ch.charCodeAt(0) - '০'.charCodeAt(0))).trim();
+
 export interface SpouseDatesInput {
   start: string;
   endKind: EndKind | '';
   end: string;
+  /** null while untouched: the suggested number is used. */
+  order: string | null;
 }
 
-export const emptySpouseDates = (): SpouseDatesInput => ({ start: '', endKind: '', end: '' });
+export const emptySpouseDates = (): SpouseDatesInput => ({ start: '', endKind: '', end: '', order: null });
 
 const toInput = (d?: FlexDate): string =>
   d?.year && d.month && d.day
@@ -23,11 +29,14 @@ export const spouseDatesToInput = (r: SpouseDates): SpouseDatesInput => ({
   start: toInput(r.startDate),
   endKind: r.endKind ?? '',
   end: toInput(r.endDate),
+  order: r.marriageOrder?.toString() ?? '',
 });
 
 /** What goes into the record; anything left empty is simply not there. */
-export function spouseDatesFromInput(v: SpouseDatesInput): SpouseDates {
+export function spouseDatesFromInput(v: SpouseDatesInput, suggested = ''): SpouseDates {
   const out: SpouseDates = {};
+  const n = Number(asciiDigits(v.order ?? suggested));
+  if (Number.isInteger(n) && n >= 1 && n <= 50) out.marriageOrder = n;
   const start = fromInput(v.start);
   const end = fromInput(v.end);
   if (start) out.startDate = start;
@@ -40,14 +49,27 @@ export function spouseDatesFromInput(v: SpouseDatesInput): SpouseDates {
 export function SpouseDatesFields({
   value,
   onChange,
+  suggestedOrder = '',
 }: {
   value: SpouseDatesInput;
   onChange: (v: SpouseDatesInput) => void;
+  suggestedOrder?: string;
 }) {
   const { t } = useI18n();
   return (
     <fieldset className="field">
       <legend>{t('spouseDatesTitle')}</legend>
+      <label className="field">
+        <span>{t('spouseOrder')}</span>
+        <small>{t('spouseOrderHint')}</small>
+        <input
+          type="text"
+          inputMode="numeric"
+          maxLength={2}
+          value={value.order ?? suggestedOrder}
+          onChange={(e) => onChange({ ...value, order: e.target.value })}
+        />
+      </label>
       <label className="field">
         <span>{t('spouseMarriage')}</span>
         <input type="date" value={value.start} onChange={(e) => onChange({ ...value, start: e.target.value })} />

@@ -483,7 +483,7 @@ service cloud.firestore {
       function validRelationship(d) {
         return d.keys().hasOnly([
             'personA', 'personB', 'type', 'kind', 'status',
-            'startDate', 'endDate', 'endKind', 'note', 'createdBy', 'createdAt', 'updatedAt'
+            'startDate', 'endDate', 'endKind', 'marriageOrder', 'note', 'createdBy', 'createdAt', 'updatedAt'
           ])
           && (!('endKind' in d) || d.endKind in ['divorce', 'separation', 'death'])
           && d.keys().hasAll(['personA', 'personB', 'type', 'createdBy', 'createdAt'])
@@ -493,6 +493,7 @@ service cloud.firestore {
           && d.type in ['parent', 'spouse', 'sibling', 'other']
           && (!('kind' in d) || d.kind in ['biological', 'adoptive', 'step', 'foster', 'unknown'])
           && (!('status' in d) || d.status in ['confirmed', 'uncertain', 'disputed'])
+          && (!('marriageOrder' in d) || (d.marriageOrder is int && d.marriageOrder >= 1 && d.marriageOrder <= 50))
           && optMap(d, 'startDate')
           && optMap(d, 'endDate')
           && optString(d, 'note', 2000)

@@ -266,6 +266,7 @@ function LinkExisting({ person }: { person: Person }) {
   const [as, setAs] = useState<'parent' | 'child' | 'spouse'>('parent');
   const [kind, setKind] = useState<RelKind>('biological');
   const [spouseDates, setSpouseDates] = useState(emptySpouseDates());
+  const suggestedMarriage = num((graph.spouses.get(person.id)?.size ?? 0) + 1, lang);
   const [warnings, setWarnings] = useState<WarningCode[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -301,7 +302,7 @@ function LinkExisting({ person }: { person: Person }) {
         personA: a,
         personB: b,
         kind: type === 'parent' ? kind : undefined,
-        ...(type === 'spouse' ? spouseDatesFromInput(spouseDates) : {}),
+        ...(type === 'spouse' ? spouseDatesFromInput(spouseDates, suggestedMarriage) : {}),
       };
       if (canEdit) {
         await addRelationship(current.id, user.uid, rel);
@@ -364,7 +365,7 @@ function LinkExisting({ person }: { person: Person }) {
           </select>
         </label>
       )}
-      {as === 'spouse' && <SpouseDatesFields value={spouseDates} onChange={setSpouseDates} />}
+      {as === 'spouse' && <SpouseDatesFields value={spouseDates} onChange={setSpouseDates} suggestedOrder={suggestedMarriage} />}
       {error && (
         <p className="msg error" role="alert">
           {error}
