@@ -1660,63 +1660,6 @@ input[type='color'].color-custom {
   background: var(--soft);
 }
 
-/* Notifications */
-.notif-btn {
-  position: relative;
-  display: grid;
-  place-items: center;
-  min-width: 44px;
-  height: 44px;
-  border: 0;
-  border-radius: 12px;
-  background: transparent;
-  color: var(--ink);
-  font-size: 1.35rem;
-  text-decoration: none;
-}
-.notif-btn .count-badge {
-  position: absolute;
-  top: 2px;
-  right: 0;
-}
-.header-actions {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-}
-.notif-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 8px;
-}
-.notif-item {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px 14px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--surface);
-  color: var(--ink);
-  text-decoration: none;
-}
-.notif-item.new {
-  border-color: var(--primary);
-  background: color-mix(in srgb, var(--primary) 10%, var(--surface));
-  font-weight: 600;
-}
-.notif-group {
-  display: grid;
-  gap: 6px;
-}
-.notif-check {
-  display: flex;
-  gap: 10px;
-  align-items: flex-start;
-}
-
 .dua-note {
   display: block;
   color: var(--primary);
