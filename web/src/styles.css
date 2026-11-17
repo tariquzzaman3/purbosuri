@@ -1602,6 +1602,11 @@ input[type='color'].color-custom {
   --muted: #5f5b52;
   --line: #e4dccb;
   --primary: #1d5a45;
+  --primary-ink: #ffffff;
+  --surface: #ffffff;
+  --bg: #fbf7ef;
+  --soft: #f1ead9;
+  --field-line: #9d9684;
   --accent: #b5532f;
   --error: #a5281b;
   --ok: #1d6a3a;
