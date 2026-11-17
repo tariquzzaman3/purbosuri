@@ -29,6 +29,8 @@ export interface Person {
   /** Contact details the person chose to show to everyone in the tree. */
   publicContact?: Contact;
   createdBy: string;
+  /** When the person was added to the tree. */
+  createdAt?: Date;
 }
 
 export interface Contact {

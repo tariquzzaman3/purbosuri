@@ -1,11 +1,14 @@
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { errorKey, useAuth } from '../auth';
+import { useTree } from '../tree/TreeContext';
 import { useI18n, type Lang, type TKey } from '../i18n';
 import {
   BN_FONTS,
   COLOR_CHOICES,
   EN_FONTS,
+  NOTIF_KINDS,
+  type NotifKind,
   useSettings,
   type TextSize,
   type Theme,
@@ -23,6 +26,23 @@ const SIZES: Array<{ id: TextSize; label: TKey }> = [
   { id: 'large', label: 'sizeLarge' },
   { id: 'xlarge', label: 'sizeXLarge' },
 ];
+
+const NOTIFY_LABEL: Record<NotifKind, TKey> = {
+  memory: 'notifyMemory',
+  person: 'notifyPerson',
+  approved: 'notifyApproved',
+  social: 'notifySocial',
+  remind: 'notifyRemind',
+  admin: 'notifyAdmin',
+};
+const NOTIFY_HELP: Record<NotifKind, TKey> = {
+  memory: 'notifyMemoryHelp',
+  person: 'notifyPersonHelp',
+  approved: 'notifyApprovedHelp',
+  social: 'notifySocialHelp',
+  remind: 'notifyRemindHelp',
+  admin: 'notifyAdminHelp',
+};
 
 function Choice<T extends string>({
   name,
@@ -118,6 +138,7 @@ function DeleteAccount() {
 export function SettingsPage() {
   const { t, lang, setLang } = useI18n();
   const s = useSettings();
+  const { canEdit } = useTree();
 
   return (
     <div className="settings">
@@ -222,6 +243,26 @@ export function SettingsPage() {
         </div>
 
         <p className="font-sample">{t('fontSample')}</p>
+      </section>
+
+      <section className="card">
+        <h3>{t('setNotifyTitle')}</h3>
+        <p className="muted small">{t('setNotifyIntro')}</p>
+        <div className="notif-group">
+          {NOTIF_KINDS.filter((k) => k !== 'admin' || canEdit).map((k) => (
+            <label key={k} className="notif-check">
+              <input
+                type="checkbox"
+                checked={s.notify[k]}
+                onChange={(e) => s.set({ notify: { ...s.notify, [k]: e.target.checked } })}
+              />
+              <span>
+                {t(NOTIFY_LABEL[k])}
+                <small className="muted"> {t(NOTIFY_HELP[k])}</small>
+              </span>
+            </label>
+          ))}
+        </div>
       </section>
 
       <section className="card">

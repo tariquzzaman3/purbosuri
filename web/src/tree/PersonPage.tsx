@@ -26,6 +26,7 @@ import {
 import type { Person, RelKind, Relationship } from '../data/types';
 import { TreeScreen } from './TreeScreen';
 import { MemoryCard } from './MemoriesPage';
+import { PersonPicker } from './PersonPicker';
 import { SpouseDatesFields, emptySpouseDates, spouseDatesFromInput, spouseDatesToInput } from './SpouseDates';
 import { useMemories } from './useMemories';
 import { useTree } from './TreeContext';
@@ -334,17 +335,10 @@ function LinkExisting({ person }: { person: Person }) {
   return (
     <section className="card">
       <h3>{t('linkExisting')}</h3>
-      <label className="field">
+      <div className="field">
         <span>{t('linkPick')}</span>
-        <select value={otherId} onChange={(e) => { setOtherId(e.target.value); setWarnings([]); }}>
-          <option value="">—</option>
-          {others.map((p) => (
-            <option key={p.id} value={p.id}>
-              {personName(p, lang, t('unknownName'))}
-            </option>
-          ))}
-        </select>
-      </label>
+        <PersonPicker people={others} value={otherId} onChange={(id) => { setOtherId(id); setWarnings([]); }} />
+      </div>
       <label className="field">
         <span>{t('linkOtherIs')}</span>
         <select value={as} onChange={(e) => { setAs(e.target.value as typeof as); setWarnings([]); }}>

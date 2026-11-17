@@ -2,6 +2,8 @@ import { Link, NavLink, Route, Routes, useLocation, useNavigate } from 'react-ro
 import { useI18n, type TKey } from '../i18n';
 import { Logo } from './Logo';
 import { MenuButton } from './MenuButton';
+import { NotificationsProvider, useNotifications } from '../tree/Notifications';
+import { NotificationsPage } from '../tree/NotificationsPage';
 import { TreeProvider, useTree } from '../tree/TreeContext';
 import { ChartPage } from '../tree/ChartView';
 import { ListPage } from '../tree/ListView';
@@ -34,6 +36,17 @@ const NAV: Array<{ to: string; label: TKey; end?: boolean }> = [
 ];
 
 /** The tabs along the bottom. Managers and admins get one more, for managing the tree. */
+function Bell() {
+  const { t } = useI18n();
+  const { unread } = useNotifications();
+  return (
+    <Link to="/home/notifications" className="notif-btn" aria-label={t('notifTitle')}>
+      <span aria-hidden="true">🔔</span>
+      {unread > 0 && <span className="count-badge">{unread > 99 ? '99+' : unread}</span>}
+    </Link>
+  );
+}
+
 function BottomNav() {
   const { t } = useI18n();
   const { canEdit, joinRequests, proposals } = useTree();
@@ -72,6 +85,7 @@ function Pages() {
         <Route path="report" element={<ReportsPage />} />
         <Route path="memories" element={<MemoriesPage />} />
         <Route path="manage" element={<ManagePage />} />
+        <Route path="notifications" element={<NotificationsPage />} />
         <Route path="join/:treeId/:code" element={<JoinPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="about" element={<AboutPage />} />
@@ -89,6 +103,7 @@ export function Home() {
 
   return (
     <TreeProvider>
+      <NotificationsProvider>
       <div className="page">
         <header className="topbar">
           <Link to="/home" className="brand">
@@ -100,12 +115,16 @@ export function Home() {
               <span className="brand-en">{t('appName')}</span>
             </span>
           </Link>
-          <MenuButton />
+          <div className="topbar-actions">
+            <Bell />
+            <MenuButton />
+          </div>
         </header>
 
         <Pages />
         <BottomNav />
       </div>
+      </NotificationsProvider>
     </TreeProvider>
   );
 }

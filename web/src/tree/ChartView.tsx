@@ -203,7 +203,15 @@ function Chart() {
     const wanted = Math.min((cw - pad * 2) / layout.width, (ch - pad * 2) / layout.height);
     // Never shrink below a readable size: a big tree is panned instead of becoming unreadable.
     const k = clamp(wanted, READABLE_ZOOM, 1);
-    const x = layout.width * k + pad * 2 <= cw ? (cw - layout.width * k) / 2 : pad;
+    // A tree that fits is centred. A bigger one opens at the top, centred on its top row (the
+    // oldest generation), so the first thing seen is where the family starts, not empty space.
+    const top = layout.cards.filter((c) => !c.isRef);
+    const minY = Math.min(...top.map((c) => c.y));
+    const row = top.filter((c) => c.y === minY);
+    const rowLeft = Math.min(...row.map((c) => c.x));
+    const rowRight = Math.max(...row.map((c) => c.x + c.w));
+    const centreX = row.length > 0 ? (rowLeft + rowRight) / 2 : layout.width / 2;
+    const x = layout.width * k + pad * 2 <= cw ? (cw - layout.width * k) / 2 : cw / 2 - centreX * k;
     const y = layout.height * k + pad * 2 <= ch ? (ch - layout.height * k) / 2 : pad;
     setView({ x, y, k });
   }, [layout]);
