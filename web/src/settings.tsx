@@ -27,12 +27,6 @@ export const EN_FONTS = [
   { id: 'lora', label: 'Lora', css: '"Lora"' },
 ] as const;
 
-/** The kinds of notification a person can switch on or off. */
-export const NOTIF_KINDS = ['memory', 'person', 'approved', 'social', 'remind', 'admin'] as const;
-export type NotifKind = (typeof NOTIF_KINDS)[number];
-export type NotifPrefs = Record<NotifKind, boolean>;
-const ALL_ON: NotifPrefs = { memory: true, person: true, approved: true, social: true, remind: true, admin: true };
-
 export interface SettingsState {
   theme: Theme;
   size: TextSize;
@@ -42,14 +36,12 @@ export interface SettingsState {
   color: string;
   /** Installed app: stay upright, or turn with the phone when the phone's rotation is on. */
   rotation: 'portrait' | 'auto';
-  /** Which notifications to show (kept on this device). */
-  notify: NotifPrefs;
 }
 
 /** Ready-made colours to pick from; the person can also choose any colour. */
 export const COLOR_CHOICES = ['#1d5a45', '#1f5f99', '#6b3fa0', '#a3365f', '#b5532f', '#2a7a86'] as const;
 
-const DEFAULTS: SettingsState = { theme: 'system', size: 'normal', bnFont: 'noto-sans', enFont: 'system', color: '', rotation: 'portrait', notify: ALL_ON };
+const DEFAULTS: SettingsState = { theme: 'system', size: 'normal', bnFont: 'noto-sans', enFont: 'system', color: '', rotation: 'portrait' };
 const KEY = 'purbosuri.settings';
 
 function read(): SettingsState {
@@ -64,9 +56,6 @@ function read(): SettingsState {
       enFont: EN_FONTS.some((f) => f.id === v.enFont) ? (v.enFont as SettingsState['enFont']) : DEFAULTS.enFont,
       color: typeof v.color === 'string' && /^#[0-9a-f]{6}$/i.test(v.color) ? v.color : '',
       rotation: v.rotation === 'auto' ? 'auto' : 'portrait',
-      notify: Object.fromEntries(
-        NOTIF_KINDS.map((k) => [k, typeof v.notify?.[k] === 'boolean' ? v.notify[k] : true]),
-      ) as NotifPrefs,
     };
   } catch {
     return DEFAULTS;

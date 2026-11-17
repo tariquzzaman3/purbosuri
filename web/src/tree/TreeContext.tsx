@@ -238,13 +238,7 @@ export function TreeProvider({ children }: { children: ReactNode }) {
       onSnapshot(
         collection(db, 'trees', treeId, 'people'),
         (snap) => {
-          setPeople(
-            snap.docs.map((d) => ({
-              id: d.id,
-              ...(d.data() as Omit<Person, 'id'>),
-              createdAt: d.data().createdAt?.toDate?.() as Date | undefined,
-            })),
-          );
+          setPeople(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Person, 'id'>) })));
           peopleLoaded = true;
           check();
         },

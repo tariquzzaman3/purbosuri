@@ -1,4 +1,4 @@
-// Text for the person picker, notifications and the family dates in Memories.
+// Text for the person picker and the dua reminder on remembrance days.
 
 export const notifyBn = {
   pickerSearch: 'নাম লিখে খুঁজুন…',
@@ -6,39 +6,6 @@ export const notifyBn = {
   pickerNone: 'এই নামে কেউ নেই।',
 
   calDua: 'দোয়া করতে ভুলবেন না — সুন্নাহ অনুযায়ী মরহুমের জন্য দোয়া করুন।',
-
-  setNotifyTitle: 'বিজ্ঞপ্তি',
-  setNotifyIntro:
-    'কোন কোন খবর আপনাকে জানানো হবে বেছে নিন। অ্যাপ খোলা থাকলে ঘণ্টার চিহ্নে দেখা যায়; ফোনে আলাদা পুশ নোটিফিকেশন এখনো নেই। পছন্দ এই ডিভাইসে থাকে।',
-  notifyMemory: 'নতুন স্মৃতি',
-  notifyMemoryHelp: 'অন্য কেউ নতুন স্মৃতি লিখলে।',
-  notifyPerson: 'গাছে নতুন মানুষ',
-  notifyPersonHelp: 'অন্য কেউ গাছে কাউকে যোগ করলে।',
-  notifyApproved: 'পরামর্শের সিদ্ধান্ত',
-  notifyApprovedHelp: 'আপনার পরামর্শ গ্রহণ বা বাতিল হলে।',
-  notifySocial: 'মন্তব্য ও প্রতিক্রিয়া',
-  notifySocialHelp: 'আপনার স্মৃতিতে কেউ মন্তব্য বা প্রতিক্রিয়া দিলে।',
-  notifyRemind: 'অনেকদিন পরে ফেরা',
-  notifyRemindHelp: 'অনেকদিন অ্যাপে না এলে, ফিরে এলে নতুন খবরের কথা মনে করানো।',
-  notifyAdmin: 'অনুমোদনের অপেক্ষায় (পরিচালকদের জন্য)',
-  notifyAdminHelp: 'পরামর্শ, যোগদানের অনুরোধ, স্মৃতি বা বার্তা অপেক্ষায় থাকলে।',
-
-  notifTitle: 'বিজ্ঞপ্তি',
-  notifIntro: 'গত ১৪ দিনের খবর।',
-  notifSettingsLink: 'কী কী দেখাবে বদলান',
-  notifEmpty: 'নতুন কিছু নেই।',
-  nSomeone: 'কেউ',
-  nMemory: '{name} একটি নতুন স্মৃতি লিখেছেন।',
-  nPerson: 'গাছে নতুন মানুষ যোগ হয়েছে: {name}।',
-  nApproved: 'আপনার পরামর্শ গ্রহণ করা হয়েছে: {name}।',
-  nRejected: 'আপনার পরামর্শ নেওয়া হয়নি: {name}।',
-  nComment: '{name} আপনার স্মৃতিতে মন্তব্য করেছেন।',
-  nReaction: '{n} জন আপনার স্মৃতিতে প্রতিক্রিয়া দিয়েছেন।',
-  nRemind: 'অনেকদিন পর এলেন ({n} দিন)! এর মধ্যে পরিবারের নতুন স্মৃতিগুলো দেখে নিন।',
-  nAdminProposals: '{n}টি পরামর্শ আপনার সিদ্ধান্তের অপেক্ষায়।',
-  nAdminJoin: '{n}টি যোগদানের অনুরোধ অপেক্ষায়।',
-  nAdminMemories: '{n}টি স্মৃতি অনুমোদনের অপেক্ষায়।',
-  nAdminReports: '{n}টি বার্তার উত্তর বাকি।',
 };
 
 export const notifyEn: typeof notifyBn = {
@@ -47,37 +14,4 @@ export const notifyEn: typeof notifyBn = {
   pickerNone: 'Nobody with that name.',
 
   calDua: 'Remember to make dua for the departed, as is the sunnah.',
-
-  setNotifyTitle: 'Notifications',
-  setNotifyIntro:
-    'Choose which news you want to be told about. They show on the bell while the app is open; phone push notifications are not available yet. Your choices stay on this device.',
-  notifyMemory: 'New memories',
-  notifyMemoryHelp: 'When someone else writes a memory.',
-  notifyPerson: 'People added to the tree',
-  notifyPersonHelp: 'When someone else adds a person.',
-  notifyApproved: 'Decisions on your suggestions',
-  notifyApprovedHelp: 'When a suggestion of yours is accepted or declined.',
-  notifySocial: 'Comments and reactions',
-  notifySocialHelp: 'When someone comments on or reacts to your memory.',
-  notifyRemind: 'Welcome back',
-  notifyRemindHelp: 'After a long time away, a reminder of what is new when you return.',
-  notifyAdmin: 'Waiting for approval (for admins)',
-  notifyAdminHelp: 'When suggestions, join requests, memories or messages are waiting.',
-
-  notifTitle: 'Notifications',
-  notifIntro: 'News from the last 14 days.',
-  notifSettingsLink: 'Change what is shown',
-  notifEmpty: 'Nothing new.',
-  nSomeone: 'Someone',
-  nMemory: '{name} wrote a new memory.',
-  nPerson: 'A new person was added to the tree: {name}.',
-  nApproved: 'Your suggestion was accepted: {name}.',
-  nRejected: 'Your suggestion was not accepted: {name}.',
-  nComment: '{name} commented on your memory.',
-  nReaction: '{n} people reacted to your memory.',
-  nRemind: 'Welcome back after {n} days! See the new memories from the family.',
-  nAdminProposals: '{n} suggestions are waiting for your decision.',
-  nAdminJoin: '{n} join requests are waiting.',
-  nAdminMemories: '{n} memories are waiting for approval.',
-  nAdminReports: '{n} messages need an answer.',
 };
