@@ -5,13 +5,7 @@ export const notifyBn = {
   pickerOpen: 'পুরো তালিকা খুলুন',
   pickerNone: 'এই নামে কেউ নেই।',
 
-  calAnniversary: 'বিবাহবার্ষিকী',
-  lifeTitle: 'পরিবারের তারিখ',
-  lifeBirth: 'জন্ম',
-  lifeDeath: 'মৃত্যু',
-  lifeMarriage: 'বিবাহ',
-  lifeMore: 'সব দেখুন',
-  lifeLess: 'কম দেখুন',
+  calDua: 'দোয়া করতে ভুলবেন না — সুন্নাহ অনুযায়ী মরহুমের জন্য দোয়া করুন।',
 
   setNotifyTitle: 'বিজ্ঞপ্তি',
   setNotifyIntro:
@@ -52,13 +46,7 @@ export const notifyEn: typeof notifyBn = {
   pickerOpen: 'Open the full list',
   pickerNone: 'Nobody with that name.',
 
-  calAnniversary: 'Wedding anniversary',
-  lifeTitle: 'Family dates',
-  lifeBirth: 'Birth',
-  lifeDeath: 'Death',
-  lifeMarriage: 'Marriage',
-  lifeMore: 'Show all',
-  lifeLess: 'Show fewer',
+  calDua: 'Remember to make dua for the departed, as is the sunnah.',
 
   setNotifyTitle: 'Notifications',
   setNotifyIntro:
