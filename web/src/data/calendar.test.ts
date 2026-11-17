@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { lifeEvents, nextOccurrence, upcomingEvents } from './calendar';
-import type { Memory, Person, Relationship } from './types';
+import { nextOccurrence, upcomingEvents } from './calendar';
+import type { Memory, Person } from './types';
 
 const person = (id: string, extra: Partial<Person>): Person => ({ id, createdBy: 'u', ...extra });
 
@@ -39,26 +39,5 @@ describe('calendar', () => {
       { id: 'm2', status: 'pending', ...base },
     ];
     expect(upcomingEvents([], memories, today, 10).map((e) => e.memoryId)).toEqual(['m1']);
-  });
-
-  it('lists wedding anniversaries of marriages still going, and life events newest first', () => {
-    const people = [
-      person('a', { birth: { year: 1960 } }),
-      person('b', { birth: { year: 1962 } }),
-      person('c', { living: false, death: { year: 2001, month: 2, day: 3 } }),
-    ];
-    const rel = (id: string, x: string, y: string, extra: Partial<Relationship> = {}): Relationship => ({
-      id, type: 'spouse', personA: x, personB: y, createdBy: 'u', ...extra,
-    });
-    const rels = [
-      rel('r1', 'a', 'b', { startDate: { year: 1985, month: 11, day: 8 } }),
-      rel('r2', 'a', 'c', { startDate: { year: 1980, month: 11, day: 9 } }),
-      rel('r3', 'b', 'a', { startDate: { year: 1970, month: 11, day: 10 }, endKind: 'divorce' }),
-    ];
-    const ann = upcomingEvents(people, [], today, 30, rels).filter((e) => e.kind === 'anniversary');
-    expect(ann.map((e) => [e.personId, e.otherId, e.years])).toEqual([['a', 'b', 41]]);
-    expect(lifeEvents(people, rels).map((e) => e.id)).toEqual([
-      'death:c', 'marriage:r1', 'marriage:r2', 'marriage:r3', 'birth:b', 'birth:a',
-    ]);
   });
 });

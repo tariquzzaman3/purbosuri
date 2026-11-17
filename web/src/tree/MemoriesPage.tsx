@@ -13,7 +13,7 @@ import {
   updateMemory,
   type ReactionType,
 } from '../data/mutations';
-import { lifeEvents, upcomingEvents } from '../data/calendar';
+import { upcomingEvents } from '../data/calendar';
 import type { FlexDate, Memory } from '../data/types';
 import { useTree } from './TreeContext';
 import { useMemories } from './useMemories';
@@ -391,14 +391,14 @@ const DAYS_AHEAD = 60;
 /** Bars across the top: what is coming up in the next weeks. */
 function UpcomingStrip({ published }: { published: Memory[] }) {
   const { t, lang } = useI18n();
-  const { people, graph, rels } = useTree();
+  const { people, graph } = useTree();
   const today = useMemo(() => new Date(), []);
   const events = useMemo(
-    () => upcomingEvents(people, published, today, DAYS_AHEAD, rels).slice(0, 10),
-    [people, published, today, rels],
+    () => upcomingEvents(people, published, today, DAYS_AHEAD).slice(0, 10),
+    [people, published, today],
   );
   const fmt = new Intl.DateTimeFormat(lang === 'bn' ? 'bn-BD' : 'en-GB', { day: 'numeric', month: 'short' });
-  const kindKey: Record<string, TKey> = { birthday: 'calBirthday', remembrance: 'calRemembrance', anniversary: 'calAnniversary', memory: 'calMemory' };
+  const kindKey: Record<string, TKey> = { birthday: 'calBirthday', remembrance: 'calRemembrance', memory: 'calMemory' };
 
   return (
     <section className="upcoming" aria-label={t('calTitle')}>
@@ -410,10 +410,7 @@ function UpcomingStrip({ published }: { published: Memory[] }) {
           {events.map((e) => {
             const p = e.personId ? graph.people.get(e.personId) : undefined;
             const memory = e.memoryId ? published.find((m) => m.id === e.memoryId) : undefined;
-            const other = e.otherId ? graph.people.get(e.otherId) : undefined;
-            const label = p
-              ? [p, other].filter((x): x is typeof p => !!x).map((x) => personName(x, lang, t('unknownName'))).join(' & ')
-              : memory?.title || memory?.body.slice(0, 30) || '—';
+            const label = p ? personName(p, lang, t('unknownName')) : memory?.title || memory?.body.slice(0, 30) || '—';
             const content = (
               <>
                 <span className="upcoming-date">{fmt.format(e.date)}</span>
@@ -422,10 +419,11 @@ function UpcomingStrip({ published }: { published: Memory[] }) {
                   {t(kindKey[e.kind])}
                   {e.years !== undefined && e.years > 0 ? ` · ${num(e.years, lang)} ${t('calYears')}` : ''}
                 </span>
+                {e.kind === 'remembrance' && <span className="dua-note small">{t('calDua')}</span>}
               </>
             );
             return (
-              <li key={`${e.kind}-${e.personId ?? e.memoryId}-${e.otherId ?? ''}`}>
+              <li key={`${e.kind}-${e.personId ?? e.memoryId}`}>
                 {p ? (
                   <Link className="upcoming-item" to={`/home/person/${p.id}`}>
                     {content}
@@ -437,42 +435,6 @@ function UpcomingStrip({ published }: { published: Memory[] }) {
             );
           })}
         </ul>
-      )}
-    </section>
-  );
-}
-
-/** Births, deaths and marriages with a date, from what people wrote on the profiles. */
-function FamilyDates() {
-  const { t, lang } = useI18n();
-  const { people, rels, graph } = useTree();
-  const [all, setAll] = useState(false);
-  const events = useMemo(() => lifeEvents(people, rels), [people, rels]);
-  if (events.length === 0) return null;
-  const shown = all ? events : events.slice(0, 6);
-  const kindKey: Record<string, TKey> = { birth: 'lifeBirth', death: 'lifeDeath', marriage: 'lifeMarriage' };
-  const nm = (id?: string) => {
-    const p = id ? graph.people.get(id) : undefined;
-    return p ? personName(p, lang, t('unknownName')) : '';
-  };
-  return (
-    <section className="upcoming" aria-label={t('lifeTitle')}>
-      <h3>{t('lifeTitle')}</h3>
-      <ul className="upcoming-list">
-        {shown.map((e) => (
-          <li key={e.id}>
-            <Link className="upcoming-item" to={`/home/person/${e.personId}`}>
-              <span className="upcoming-date">{formatDate(e.date, lang, t('fApprox'))}</span>
-              <span className="upcoming-name">{[nm(e.personId), nm(e.otherId)].filter(Boolean).join(' & ')}</span>
-              <span className="muted small">{t(kindKey[e.kind])}</span>
-            </Link>
-          </li>
-        ))}
-      </ul>
-      {events.length > 6 && (
-        <button type="button" className="btn small" onClick={() => setAll((v) => !v)}>
-          {all ? t('lifeLess') : t('lifeMore')}
-        </button>
       )}
     </section>
   );
@@ -492,7 +454,6 @@ export function MemoriesPage() {
     <div className="memories-page">
       <UpcomingStrip published={published} />
       {canContribute && <Composer collapsible onDone={() => undefined} />}
-      <FamilyDates />
 
       {waiting.length > 0 && (
         <>
