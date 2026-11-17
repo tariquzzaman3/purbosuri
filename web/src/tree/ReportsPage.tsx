@@ -12,7 +12,7 @@ const STATUS_KEYS: Record<Report['status'], TKey> = {
   solved: 'rpSolved',
 };
 
-function useReports(treeId: string | undefined, uid: string | undefined, all: boolean): Report[] {
+export function useReports(treeId: string | undefined, uid: string | undefined, all: boolean): Report[] {
   const [items, setItems] = useState<Report[]>([]);
   useEffect(() => {
     setItems([]);

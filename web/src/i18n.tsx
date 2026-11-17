@@ -15,6 +15,7 @@ import { approvalBn, approvalEn } from './i18n-approvals';
 import { reportBn, reportEn } from './i18n-reports';
 import { memoriesBn, memoriesEn } from './i18n-memories';
 import { legalBn, legalEn } from './i18n-legal';
+import { notifyBn, notifyEn } from './i18n-notify';
 
 export type Lang = 'bn' | 'en';
 
@@ -100,6 +101,7 @@ const bn = {
   ...approvalBn,
   ...reportBn,
   ...memoriesBn,
+  ...notifyBn,
   ...legalBn,
 };
 
@@ -184,6 +186,7 @@ const en: typeof bn = {
   ...approvalEn,
   ...reportEn,
   ...memoriesEn,
+  ...notifyEn,
   ...legalEn,
 };
 

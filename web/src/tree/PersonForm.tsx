@@ -7,6 +7,7 @@ import { num, personName } from '../data/format';
 import { KIND_KEYS, VERIFICATION_KEYS } from '../data/labels';
 import type { FlexDate, Person, PersonFields, RelKind, Verification } from '../data/types';
 import { TreeScreen } from './TreeScreen';
+import { PersonPicker } from './PersonPicker';
 import { SpouseDatesFields, emptySpouseDates, spouseDatesFromInput } from './SpouseDates';
 import { useTree } from './TreeContext';
 
@@ -291,17 +292,10 @@ function Form({ person }: { person?: Person }) {
     relationBlock = (
       <fieldset className="field">
         <legend>{t('formRelationTitle')}</legend>
-        <label className="field">
+        <div className="field">
           <span>{t('linkPick')}</span>
-          <select value={otherId} onChange={(e) => setOtherId(e.target.value)}>
-            <option value="">—</option>
-            {others.map((p) => (
-              <option key={p.id} value={p.id}>
-                {personName(p, lang, unknown)}
-              </option>
-            ))}
-          </select>
-        </label>
+          <PersonPicker people={others} value={otherId} onChange={setOtherId} />
+        </div>
         {other && (
           <>
             <label className="field">
