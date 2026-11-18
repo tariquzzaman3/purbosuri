@@ -4,6 +4,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ReactNode,
   type KeyboardEvent,
   type PointerEvent,
 } from 'react';
@@ -121,6 +122,8 @@ function Icon({ d, circle }: { d: string; circle?: boolean }) {
 }
 
 const ICON_FIT = 'M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5';
+/** Distance of the arc buttons from the corner button, in pixels. */
+const FAN_RADIUS = 88;
 const ICON_FULL = 'M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5';
 const ICON_CLOSE = 'M6 6l12 12M18 6L6 18';
 const ICON_ROTATE = 'M20 12a8 8 0 1 1-2.6-5.9M20 4v5h-5';
@@ -297,9 +300,8 @@ function Chart() {
     return () => window.cancelAnimationFrame(id);
   }, [full, fit]);
 
-  // The rotate button works in full screen, and also in the installed app, which is not a browser tab.
-  const installed = typeof window !== 'undefined' && !!window.matchMedia?.('(display-mode: standalone)').matches;
-  const canRotate = (full || installed) && typeof orientation()?.lock === 'function';
+  // The rotate button is on the arc in full screen only.
+  const canRotate = full && typeof orientation()?.lock === 'function';
 
   const rotate = async () => {
     const o = orientation();
@@ -311,6 +313,17 @@ function Chart() {
       window.setTimeout(() => setNotice(null), 4000);
     }
   };
+
+  // The buttons on the arc: zoom in, zoom out and back to the start, plus rotate in full screen.
+  const fanButtons: Array<{ key: string; label: string; content: ReactNode; run: () => void }> = [
+    { key: 'in', label: t('chartZoomIn'), content: '+', run: () => zoomCentre(1.25) },
+    { key: 'out', label: t('chartZoomOut'), content: '−', run: () => zoomCentre(1 / 1.25) },
+    { key: 'fit', label: t('chartFit'), content: <Icon d={ICON_FIT} circle />, run: fit },
+  ];
+  if (canRotate) {
+    fanButtons.push({ key: 'rot', label: t('chartRotate'), content: <Icon d={ICON_ROTATE} />, run: () => void rotate() });
+  }
+  const fanAngles = fanButtons.length > 3 ? [0, 30, 60, 90] : [10, 45, 80];
 
   // ---------- dragging ----------
 
@@ -471,43 +484,13 @@ function Chart() {
           </svg>
         </div>
 
-        <div className="chart-glass" role="toolbar" aria-label={t('chartControls')}>
-          <button
-            type="button"
-            className="glass-btn"
-            aria-label={t('chartZoomIn')}
-            title={t('chartZoomIn')}
-            onClick={() => zoomCentre(1.25)}
-          >
-            +
-          </button>
-          <button
-            type="button"
-            className="glass-btn"
-            aria-label={t('chartZoomOut')}
-            title={t('chartZoomOut')}
-            onClick={() => zoomCentre(1 / 1.25)}
-          >
-            −
-          </button>
-          <button
-            type="button"
-            className="glass-btn"
-            aria-label={t('chartFit')}
-            title={t('chartFit')}
-            onClick={fit}
-          >
-            <Icon d={ICON_FIT} circle />
-          </button>
-          {branchId && (
-            <button type="button" className="glass-btn text" onClick={() => setBranchId(null)}>
-              {t('chartShowAll')}
-            </button>
-          )}
+        {/* A quarter-round in the top-left corner: the full screen button sits in the corner and the
+            other buttons follow the arc around it. */}
+        <div className="chart-fan" role="toolbar" aria-label={t('chartControls')}>
           {full ? (
             <button
               type="button"
-              className="glass-btn"
+              className="glass-btn fan-corner"
               aria-label={t('chartExitFullscreen')}
               title={t('chartExitFullscreen')}
               onClick={() => void exitFull()}
@@ -517,7 +500,7 @@ function Chart() {
           ) : (
             <button
               type="button"
-              className="glass-btn"
+              className="glass-btn fan-corner"
               aria-label={t('chartFullscreen')}
               title={t('chartFullscreen')}
               onClick={() => void enterFull()}
@@ -525,18 +508,32 @@ function Chart() {
               <Icon d={ICON_FULL} />
             </button>
           )}
-          {canRotate && (
-            <button
-              type="button"
-              className="glass-btn"
-              aria-label={t('chartRotate')}
-              title={t('chartRotate')}
-              onClick={() => void rotate()}
-            >
-              <Icon d={ICON_ROTATE} />
-            </button>
-          )}
+          {fanButtons.map((b, i) => {
+            const angle = ((fanAngles[i] ?? 0) * Math.PI) / 180;
+            return (
+              <button
+                key={b.key}
+                type="button"
+                className="glass-btn fan-arc"
+                style={{
+                  left: `calc(var(--fan-x) + ${(Math.cos(angle) * FAN_RADIUS).toFixed(1)}px - 21px)`,
+                  top: `calc(var(--fan-y) + ${(Math.sin(angle) * FAN_RADIUS).toFixed(1)}px - 21px)`,
+                }}
+                aria-label={b.label}
+                title={b.label}
+                onClick={b.run}
+              >
+                {b.content}
+              </button>
+            );
+          })}
         </div>
+
+        {branchId && (
+          <button type="button" className="glass-btn text chart-branch" onClick={() => setBranchId(null)}>
+            {t('chartShowAll')}
+          </button>
+        )}
 
         {notice && (
           <div className="chart-notice" role="status">
