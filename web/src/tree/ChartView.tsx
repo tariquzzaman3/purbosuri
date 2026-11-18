@@ -130,7 +130,7 @@ const ICON_ROTATE = 'M20 12a8 8 0 1 1-2.6-5.9M20 4v5h-5';
 
 function Chart() {
   const { t, lang } = useI18n();
-  const { graph, people, rels } = useTree();
+  const { graph, people, rels, canContribute } = useTree();
   const unknown = t('unknownName');
   const approx = t('fApprox');
   const { fontSignature, rotation } = useSettings();
@@ -385,15 +385,22 @@ function Chart() {
 
   return (
     <section>
-      <label className="field search">
-        <span className="sr-only">{t('searchPeople')}</span>
-        <input
-          type="search"
-          value={query}
-          placeholder={t('searchPeople')}
-          onChange={(e) => setQuery(e.target.value)}
-        />
-      </label>
+      <div className="search-row">
+        <label className="field search">
+          <span className="sr-only">{t('searchPeople')}</span>
+          <input
+            type="search"
+            value={query}
+            placeholder={t('searchPeople')}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </label>
+        {canContribute && (
+          <Link className="add-btn" to="/home/add" aria-label={t('addPerson')} title={t('addPerson')}>
+            +
+          </Link>
+        )}
+      </div>
       {q && (
         <ul className="plain-list card search-results">
           {matches.length === 0 && <li className="muted">{t('noMatches')}</li>}
@@ -565,7 +572,7 @@ function Chart() {
 
 export function ChartPage() {
   return (
-    <TreeScreen>
+    <TreeScreen fab={false}>
       <Chart />
     </TreeScreen>
   );

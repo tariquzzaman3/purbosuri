@@ -19,12 +19,20 @@ export const BN_FONTS = [
   { id: 'hind-siliguri', label: 'Hind Siliguri', css: '"Hind Siliguri"' },
   { id: 'anek-bangla', label: 'Anek Bangla', css: '"Anek Bangla"' },
   { id: 'noto-serif', label: 'Noto Serif Bengali', css: '"Noto Serif Bengali"' },
+  { id: 'baloo-da', label: 'Baloo Da 2', css: '"Baloo Da 2"' },
+  { id: 'tiro-bangla', label: 'Tiro Bangla', css: '"Tiro Bangla"' },
+  { id: 'atma', label: 'Atma', css: '"Atma"' },
+  { id: 'mina', label: 'Mina', css: '"Mina"' },
+  { id: 'galada', label: 'Galada', css: '"Galada"' },
 ] as const;
 
 export const EN_FONTS = [
   { id: 'system', label: '', css: 'system-ui, -apple-system, "Segoe UI", Roboto' },
   { id: 'inter', label: 'Inter', css: '"Inter"' },
   { id: 'lora', label: 'Lora', css: '"Lora"' },
+  { id: 'merriweather', label: 'Merriweather', css: '"Merriweather"' },
+  { id: 'poppins', label: 'Poppins', css: '"Poppins"' },
+  { id: 'caveat', label: 'Caveat', css: '"Caveat"' },
 ] as const;
 
 export interface SettingsState {
