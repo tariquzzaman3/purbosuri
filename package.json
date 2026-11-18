@@ -11,6 +11,6 @@
     "@firebase/rules-unit-testing": "^4.0.0",
     "firebase": "^11.0.0",
     "firebase-tools": "^14.0.0",
-    "vitest": "^2.0.0"
+    "vitest": "^3.2.6"
   }
 }
