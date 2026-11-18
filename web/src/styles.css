@@ -881,7 +881,7 @@ fieldset.field legend {
   border-radius: 0;
 }
 
-.chart-glass,
+.chart-fan,
 .chart-select,
 .chart-notice {
   position: absolute;
@@ -893,23 +893,44 @@ fieldset.field legend {
 }
 
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .chart-glass,
+  .chart-fan,
   .chart-select,
   .chart-notice {
     background: rgba(255, 255, 255, 0.92);
   }
 }
 
-.chart-glass {
+.chart-fan {
+  --fan-x: calc(30px + env(safe-area-inset-left));
+  --fan-y: calc(30px + env(safe-area-inset-top));
+  top: 0;
+  left: 0;
+  width: calc(var(--fan-x) + 118px);
+  height: calc(var(--fan-y) + 118px);
+  /* A quarter of a round, with its point in the corner of the chart. */
+  border-radius: 0 0 100% 0;
+  border-width: 0 1px 1px 0;
+  /* See-through, so any writing under it still shows. */
+  background: rgba(255, 255, 255, 0.28);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+
+.chart-fan .glass-btn {
+  position: absolute;
+  padding: 0;
+  width: 42px;
+}
+
+.chart-fan .fan-corner {
+  left: calc(var(--fan-x) - 21px);
+  top: calc(var(--fan-y) - 21px);
+}
+
+.chart-branch {
+  position: absolute;
   top: calc(10px + env(safe-area-inset-top));
-  left: calc(10px + env(safe-area-inset-left));
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-  max-width: calc(100% - 20px);
-  padding: 6px;
-  border-radius: 16px;
+  left: calc(var(--fan-x, 30px) + 120px);
 }
 
 .glass-btn {
@@ -1594,9 +1615,10 @@ input[type='color'].color-custom {
 }
 
 /* The chart's glass panels are light in every theme, so they keep the light-theme colours. */
-.chart-glass,
+.chart-fan,
 .chart-select,
 .chart-notice,
+.chart-branch,
 .glass-btn {
   --ink: #2b2a26;
   --muted: #5f5b52;
