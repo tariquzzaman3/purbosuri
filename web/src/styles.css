@@ -901,12 +901,12 @@ fieldset.field legend {
 }
 
 .chart-fan {
-  --fan-x: calc(30px + env(safe-area-inset-left));
-  --fan-y: calc(30px + env(safe-area-inset-top));
+  --fan-x: calc(26px + env(safe-area-inset-left));
+  --fan-y: calc(26px + env(safe-area-inset-top));
   top: 0;
   left: 0;
-  width: calc(var(--fan-x) + 118px);
-  height: calc(var(--fan-y) + 118px);
+  width: calc(var(--fan-x) + 100px);
+  height: calc(var(--fan-y) + 100px);
   /* A quarter of a round, with its point in the corner of the chart. */
   border-radius: 0 0 100% 0;
   border-width: 0 1px 1px 0;
@@ -919,18 +919,22 @@ fieldset.field legend {
 .chart-fan .glass-btn {
   position: absolute;
   padding: 0;
-  width: 42px;
+  min-width: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  font-size: 1.3rem;
 }
 
 .chart-fan .fan-corner {
-  left: calc(var(--fan-x) - 21px);
-  top: calc(var(--fan-y) - 21px);
+  left: calc(var(--fan-x) - 17px);
+  top: calc(var(--fan-y) - 17px);
 }
 
 .chart-branch {
   position: absolute;
   top: calc(10px + env(safe-area-inset-top));
-  left: calc(var(--fan-x, 30px) + 120px);
+  left: calc(var(--fan-x, 26px) + 106px);
 }
 
 .glass-btn {

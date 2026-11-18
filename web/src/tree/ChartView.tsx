@@ -123,7 +123,7 @@ function Icon({ d, circle }: { d: string; circle?: boolean }) {
 
 const ICON_FIT = 'M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5';
 /** Distance of the arc buttons from the corner button, in pixels. */
-const FAN_RADIUS = 88;
+const FAN_RADIUS = 72;
 const ICON_FULL = 'M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5';
 const ICON_CLOSE = 'M6 6l12 12M18 6L6 18';
 const ICON_ROTATE = 'M20 12a8 8 0 1 1-2.6-5.9M20 4v5h-5';
@@ -516,8 +516,8 @@ function Chart() {
                 type="button"
                 className="glass-btn fan-arc"
                 style={{
-                  left: `calc(var(--fan-x) + ${(Math.cos(angle) * FAN_RADIUS).toFixed(1)}px - 21px)`,
-                  top: `calc(var(--fan-y) + ${(Math.sin(angle) * FAN_RADIUS).toFixed(1)}px - 21px)`,
+                  left: `calc(var(--fan-x) + ${(Math.cos(angle) * FAN_RADIUS).toFixed(1)}px - 17px)`,
+                  top: `calc(var(--fan-y) + ${(Math.sin(angle) * FAN_RADIUS).toFixed(1)}px - 17px)`,
                 }}
                 aria-label={b.label}
                 title={b.label}
