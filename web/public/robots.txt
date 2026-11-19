@@ -1,0 +1,7 @@
+# Purbosuri: public pages may be indexed. Signed-in pages (/home, /join) are kept out of
+# search results with an X-Robots-Tag: noindex header (see firebase.json), so they are
+# deliberately NOT blocked here: a crawler has to be able to read that header.
+User-agent: *
+Allow: /
+
+Sitemap: https://purbosuri.web.app/sitemap.xml

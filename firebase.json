@@ -11,12 +11,35 @@
       "**/node_modules/**"
     ],
     "rewrites": [
-      {
-        "source": "**",
-        "destination": "/index.html"
-      }
+      { "source": "/welcome", "destination": "/index.html" },
+      { "source": "/home", "destination": "/index.html" },
+      { "source": "/home/**", "destination": "/index.html" },
+      { "source": "/join/**", "destination": "/index.html" },
+      { "source": "/privacy", "destination": "/index.html" },
+      { "source": "/terms", "destination": "/index.html" },
+      { "source": "/data-deletion", "destination": "/index.html" }
     ],
     "headers": [
+      {
+        "source": "/home",
+        "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
+      },
+      {
+        "source": "/home/**",
+        "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
+      },
+      {
+        "source": "/join/**",
+        "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
+      },
+      {
+        "source": "/robots.txt",
+        "headers": [{ "key": "Content-Type", "value": "text/plain; charset=utf-8" }]
+      },
+      {
+        "source": "/sitemap.xml",
+        "headers": [{ "key": "Content-Type", "value": "application/xml; charset=utf-8" }]
+      },
       {
         "source": "**",
         "headers": [

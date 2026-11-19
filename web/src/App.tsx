@@ -8,6 +8,7 @@ import { Home } from './screens/Home';
 import { DataDeletionPage, PrivacyPage, TermsPage } from './screens/InfoPages';
 import { VerifyEmail } from './screens/VerifyEmail';
 import { SettingsProvider } from './settings';
+import { Seo } from './seo';
 
 function Loading() {
   const { t } = useI18n();
@@ -91,6 +92,15 @@ function Shell() {
 
   return (
     <Routes>
+      {/* "/" is the public landing page that search engines index; "/welcome" is kept for old links. */}
+      <Route
+        path="/"
+        element={
+          <PublicOnly>
+            <Welcome />
+          </PublicOnly>
+        }
+      />
       <Route
         path="/welcome"
         element={
@@ -122,6 +132,7 @@ export function App() {
       <SettingsProvider>
         <AuthProvider>
           <BrowserRouter>
+            <Seo />
             <Shell />
           </BrowserRouter>
         </AuthProvider>
