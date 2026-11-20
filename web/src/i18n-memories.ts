@@ -33,14 +33,25 @@ export const memoriesBn = {
   memAbout: 'যাঁদের নিয়ে',
   memEditNote: 'সংশোধন করলে লেখাটি আবার প্রক্রিয়া করে দেখানো হবে।',
 
-  calTitle: 'আসন্ন দিন',
-  calIntro: 'আগামী ৯০ দিনের জন্মদিন, স্মরণ দিবস আর স্মৃতির তারিখ। শুধু মাস ও দিন জানা তারিখ এখানে আসে।',
-  calNone: 'আগামী ৯০ দিনে কিছু নেই।',
+  calTitle: 'এই সময়ের দিন',
   calBirthday: 'জন্মদিন',
-  calRemembrance: 'স্মরণ দিবস',
+  calDeathAnniversary: 'মৃত্যুবার্ষিকী',
+  calMarriageAnniversary: 'বিবাহবার্ষিকী',
   calMemory: 'স্মৃতির দিন',
   calToday: 'আজ',
   calYears: 'বছর',
+  calAnd: 'ও',
+  // Only a dua is asked for, also for the departed.
+  duaPerson: 'তাঁর জন্য দোয়া করুন।',
+  duaCouple: 'তাঁদের জন্য দোয়া করুন।',
+  duaCoupleOneDeceased: 'মরহুমের জন্য দোয়া করুন।',
+
+  rcMemWindowT: 'স্মৃতিতে তারিখ কত সময় দেখানো হবে',
+  rcMemWindowW:
+    'সঠিক দিনে দেখতে না পেলেও যেন পুরো সপ্তাহ বা মাসে তারিখটি চোখে পড়ে। সপ্তাহ শুরু শনিবার। শুধু মাস জানা তারিখ কেবল “পুরো মাস” বেছে নিলে দেখা যায়। বিচ্ছেদ বা বিবাহবিচ্ছেদের তারিখ কখনো দেখানো হয় না।',
+  rcWinDay: 'শুধু ওই দিন',
+  rcWinWeek: 'পুরো সপ্তাহ',
+  rcWinMonth: 'পুরো মাস',
 
   spouseDatesTitle: 'বিবাহের তথ্য (ঐচ্ছিক)',
   spouseMarriage: 'বিবাহের তারিখ',
@@ -112,14 +123,25 @@ export const memoriesEn: typeof memoriesBn = {
   memAbout: 'About',
   memEditNote: 'After you edit, the story will be processed and displayed again.',
 
-  calTitle: 'Coming up',
-  calIntro: 'Birthdays, remembrance days and memory dates in the next 90 days. Only dates with a known month and day appear.',
-  calNone: 'Nothing in the next 90 days.',
+  calTitle: 'Days around now',
   calBirthday: 'Birthday',
-  calRemembrance: 'Remembrance day',
-  calMemory: 'Memory day',
+  calDeathAnniversary: 'Death anniversary',
+  calMarriageAnniversary: 'Wedding anniversary',
+  calMemory: 'Story date',
   calToday: 'Today',
   calYears: 'years',
+  calAnd: '&',
+  // Only a dua is asked for, also for the departed.
+  duaPerson: 'Please make dua for them.',
+  duaCouple: 'Please make dua for them.',
+  duaCoupleOneDeceased: 'Please make dua for the departed.',
+
+  rcMemWindowT: 'How long a date shows in Memories',
+  rcMemWindowW:
+    'So a date is noticed through the whole week or month even if nobody opens the app on the exact day. The week starts on Saturday. A date with only a month appears only under “The whole month”. A separation or divorce date is never shown.',
+  rcWinDay: 'Only that day',
+  rcWinWeek: 'The whole week',
+  rcWinMonth: 'The whole month',
 
   spouseDatesTitle: 'Marriage details (optional)',
   spouseMarriage: 'Date of marriage',

@@ -177,11 +177,26 @@ service cloud.firestore {
         && d.name.size() <= 120
         && optMap(d, 'settings')
         && (!('settings' in d)
-            || (d.settings.keys().hasOnly(['adminsCanInvite', 'participantsCanInvite', 'inviteDays'])
+            || (d.settings.keys().hasOnly(['adminsCanInvite', 'participantsCanInvite', 'inviteDays', 'memoryWindows'])
                 && (!('inviteDays' in d.settings)
                     || (d.settings.inviteDays is int && d.settings.inviteDays >= 1 && d.settings.inviteDays <= 30))
                 && (!('adminsCanInvite' in d.settings) || d.settings.adminsCanInvite is bool)
-                && (!('participantsCanInvite' in d.settings) || d.settings.participantsCanInvite is bool)));
+                && (!('participantsCanInvite' in d.settings) || d.settings.participantsCanInvite is bool)
+                && (!('memoryWindows' in d.settings) || validMemoryWindows(d.settings.memoryWindows))));
+    }
+
+    // How long each kind of date shows in Memories: the exact day, the week or the month.
+    function validWindow(w, key) {
+      return !(key in w) || w[key] in ['day', 'week', 'month'];
+    }
+
+    function validMemoryWindows(w) {
+      return w is map
+        && w.keys().hasOnly(['birthday', 'deathAnniversary', 'marriageAnniversary', 'postDate'])
+        && validWindow(w, 'birthday')
+        && validWindow(w, 'deathAnniversary')
+        && validWindow(w, 'marriageAnniversary')
+        && validWindow(w, 'postDate');
     }
 
     // What the manager has switched on for this tree (missing means the default).
@@ -227,12 +242,12 @@ service cloud.firestore {
                 && getAfter(memberDoc(treeId, request.resource.data.ownerUid)).data.role == 'owner'
                 && getAfter(memberDoc(treeId, request.auth.uid)).data.role in ['reviewer', 'contributor']));
 
-      // An admin can change the "participants can invite" switch, nothing else.
+      // An admin can change the "participants can invite" switch and the memory windows, nothing else.
       allow update: if isReviewer(treeId)
         && validTree(request.resource.data)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['settings'])
         && request.resource.data.get('settings', {}).diff(resource.data.get('settings', {}))
-             .affectedKeys().hasOnly(['participantsCanInvite']);
+             .affectedKeys().hasOnly(['participantsCanInvite', 'memoryWindows']);
 
       // Deleting a tree document does not delete its subcollections.
       // A full tree deletion is done by the client, collection by collection.

@@ -13,8 +13,8 @@ import {
   updateMemory,
   type ReactionType,
 } from '../data/mutations';
-import { upcomingEvents } from '../data/calendar';
-import type { FlexDate, Memory } from '../data/types';
+import { memoryEvents, resolveWindows, type DuaKind } from '../data/calendar';
+import type { FlexDate, Memory, MemoryKind } from '../data/types';
 import { useTree } from './TreeContext';
 import { useMemories } from './useMemories';
 import { useComments, useReactions } from './useReactions';
@@ -386,61 +386,87 @@ export function MemoryCard({ m }: { m: Memory }) {
   );
 }
 
-const DAYS_AHEAD = 60;
+const DUA_TEXT: Record<DuaKind, TKey> = {
+  living: 'duaPerson',
+  deceased: 'duaPerson',
+  couple: 'duaCouple',
+  coupleOneDeceased: 'duaCoupleOneDeceased',
+};
 
-/** Bars across the top: what is coming up in the next weeks. */
-function UpcomingStrip({ published }: { published: Memory[] }) {
+const KIND_TEXT: Record<MemoryKind, TKey> = {
+  birthday: 'calBirthday',
+  deathAnniversary: 'calDeathAnniversary',
+  marriageAnniversary: 'calMarriageAnniversary',
+  postDate: 'calMemory',
+};
+
+/**
+ * Dates around now: every date on a profile, a marriage or a published story whose window
+ * (set by the admin) contains today. A departed person gets a dua request only. When nothing
+ * falls in the window, nothing is shown at all.
+ */
+function DaysStrip({ published }: { published: Memory[] }) {
   const { t, lang } = useI18n();
-  const { people, graph } = useTree();
+  const { people, rels, graph, settings } = useTree();
   const today = useMemo(() => new Date(), []);
   const events = useMemo(
-    () => upcomingEvents(people, published, today, DAYS_AHEAD).slice(0, 10),
-    [people, published, today],
+    () => memoryEvents(people, rels, published, today, resolveWindows(settings.memoryWindows)),
+    [people, rels, published, today, settings.memoryWindows],
   );
-  const fmt = new Intl.DateTimeFormat(lang === 'bn' ? 'bn-BD' : 'en-GB', { day: 'numeric', month: 'short' });
-  const kindKey: Record<string, TKey> = { birthday: 'calBirthday', remembrance: 'calRemembrance', memory: 'calMemory' };
+  if (events.length === 0) return null;
+
+  const locale = lang === 'bn' ? 'bn-BD' : 'en-GB';
+  const dayFmt = new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short' });
+  const monthFmt = new Intl.DateTimeFormat(locale, { month: 'long' });
+  const nameOf = (id?: string) => {
+    const p = id ? graph.people.get(id) : undefined;
+    return p ? personName(p, lang, t('unknownName')) : t('unknownName');
+  };
 
   return (
     <section className="upcoming" aria-label={t('calTitle')}>
       <h3>{t('calTitle')}</h3>
-      {events.length === 0 ? (
-        <p className="muted small">{t('calNone')}</p>
-      ) : (
-        <ul className="upcoming-list">
-          {events.map((e) => {
-            const p = e.personId ? graph.people.get(e.personId) : undefined;
-            const memory = e.memoryId ? published.find((m) => m.id === e.memoryId) : undefined;
-            const label = p ? personName(p, lang, t('unknownName')) : memory?.title || memory?.body.slice(0, 30) || '—';
-            const content = (
-              <>
-                <span className="upcoming-date">{fmt.format(e.date)}</span>
-                <span className="upcoming-name">{label}</span>
-                <span className="muted small">
-                  {t(kindKey[e.kind])}
-                  {e.years !== undefined && e.years > 0 ? ` · ${num(e.years, lang)} ${t('calYears')}` : ''}
-                </span>
-                {e.kind === 'remembrance' && <span className="dua-note small">{t('calDua')}</span>}
-              </>
-            );
-            return (
-              <li key={`${e.kind}-${e.personId ?? e.memoryId}`}>
-                {p ? (
-                  <Link className="upcoming-item" to={`/home/person/${p.id}`}>
-                    {content}
-                  </Link>
-                ) : (
-                  <div className="upcoming-item">{content}</div>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      )}
+      <ul className="upcoming-list">
+        {events.map((e) => {
+          const memory = e.memoryId ? published.find((m) => m.id === e.memoryId) : undefined;
+          const label = memory
+            ? memory.title || memory.body.slice(0, 30) || '—'
+            : e.partnerId
+              ? `${nameOf(e.personId)} ${t('calAnd')} ${nameOf(e.partnerId)}`
+              : nameOf(e.personId);
+          const when = `${e.approx ? `${t('fApprox')} ` : ''}${(e.dayKnown ? dayFmt : monthFmt).format(e.date)}`;
+          const content = (
+            <>
+              <span className="upcoming-date">
+                {when}
+                {e.isToday && ` · ${t('calToday')}`}
+              </span>
+              <span className="upcoming-name">{label}</span>
+              <span className="muted small">
+                {t(KIND_TEXT[e.kind])}
+                {e.years !== undefined && e.years > 0 ? ` · ${num(e.years, lang)} ${t('calYears')}` : ''}
+              </span>
+              {e.dua && <span className="dua-note small">{t(DUA_TEXT[e.dua])}</span>}
+            </>
+          );
+          return (
+            <li key={e.key}>
+              {e.personId ? (
+                <Link className="upcoming-item" to={`/home/person/${e.personId}`}>
+                  {content}
+                </Link>
+              ) : (
+                <div className="upcoming-item">{content}</div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
     </section>
   );
 }
 
-/** Written stories of the family: upcoming days, a place to write, then the feed. */
+/** Written stories of the family: dates around now, a place to write, then the feed. */
 export function MemoriesPage() {
   const { t } = useI18n();
   const { user } = useAuth();
@@ -452,7 +478,7 @@ export function MemoriesPage() {
 
   return (
     <div className="memories-page">
-      <UpcomingStrip published={published} />
+      <DaysStrip published={published} />
       {canContribute && <Composer collapsible onDone={() => undefined} />}
 
       {waiting.length > 0 && (

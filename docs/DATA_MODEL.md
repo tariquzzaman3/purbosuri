@@ -74,3 +74,27 @@ Proposals and audit entries can never be deleted or rewritten.
   written alongside an approved change.
 - Deleting a tree or account does not remove its subcollections automatically.
   The client deletes them collection by collection.
+
+## Dates in Memories
+
+Memories shows the dates of a tree around the day they fall on. The rules live in
+`web/src/data/calendar.ts` and are covered by `calendar.test.ts`.
+
+- **Where dates live.** Birth and death belong to a person. The marriage date
+  (`startDate`) belongs to the spouse link, so a person with several spouses has a
+  separate marriage date for each. Story dates belong to the story.
+- **What appears.** Birthdays (of the living and the departed), death anniversaries,
+  marriage anniversaries and the dates of published stories. Pending stories do not.
+- **What never appears.** The end of a marriage (`endDate`, `endKind`) is never read
+  by Memories, so a separation or divorce date cannot show. The marriage anniversary of
+  a couple who divorced or separated is also left out. If a spouse died, the anniversary
+  still shows.
+- **Dua.** Each person, couple or marriage item carries a dua request. A departed person
+  is never "remembered": the text asks only for a dua.
+- **Windows.** `trees/{treeId}.settings.memoryWindows` holds, for each of `birthday`,
+  `deathAnniversary`, `marriageAnniversary` and `postDate`, one of `day` (default),
+  `week` (Saturday to Friday) or `month`. The manager and admins can change it.
+- **Incomplete dates.** A date with a month but no day shows only under the month
+  window, labelled approximate. A date with only a year never shows. A date is never
+  turned into an exact day.
+- **Empty.** When nothing is in its window, the section is not shown.
