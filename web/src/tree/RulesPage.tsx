@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useI18n, type TKey } from '../i18n';
 import { saveTreeSettings } from '../data/mutations';
-import type { TreeSettings } from '../data/types';
+import { MEMORY_KINDS, MEMORY_WINDOWS, resolveWindows } from '../data/calendar';
+import type { MemoryKind, MemoryWindow, TreeSettings } from '../data/types';
 import { useTree } from './TreeContext';
 
 interface Fixed {
@@ -26,6 +27,15 @@ const FIXED: Fixed[] = [
   { title: 'fxConnectedT', why: 'fxConnectedW', decided: '2026-10-27' },
 ];
 
+const KIND_TEXT: Record<MemoryKind, TKey> = {
+  birthday: 'calBirthday',
+  deathAnniversary: 'calDeathAnniversary',
+  marriageAnniversary: 'calMarriageAnniversary',
+  postDate: 'calMemory',
+};
+
+const WINDOW_TEXT: Record<MemoryWindow, TKey> = { day: 'rcWinDay', week: 'rcWinWeek', month: 'rcWinMonth' };
+
 /** Every rule of the tree in one place: why it exists, when it was decided, and who can change it. */
 export function RulesPage() {
   const { t, lang } = useI18n();
@@ -46,6 +56,8 @@ export function RulesPage() {
       setNote(t('errSave'));
     }
   };
+
+  const windows = resolveWindows(settings.memoryWindows);
 
   const day = (iso: string) =>
     new Date(iso).toLocaleDateString(lang === 'bn' ? 'bn-BD' : 'en-GB', {
@@ -122,6 +134,33 @@ export function RulesPage() {
         </p>
         <p className="muted small">
           {t('rulesDecided')}: {day('2026-10-26')} · {t('rulesWho')}: {t('whoManager')}
+        </p>
+      </section>
+
+      <section className="card rule">
+        <strong>{t('rcMemWindowT')}</strong>
+        {MEMORY_KINDS.map((kind) => (
+          <label key={kind} className="inline-select">
+            <span>{t(KIND_TEXT[kind])}</span>
+            <select
+              value={windows[kind]}
+              onChange={(e) =>
+                void save({ memoryWindows: { ...settings.memoryWindows, [kind]: e.target.value as MemoryWindow } })
+              }
+            >
+              {MEMORY_WINDOWS.map((w) => (
+                <option key={w} value={w}>
+                  {t(WINDOW_TEXT[w])}
+                </option>
+              ))}
+            </select>
+          </label>
+        ))}
+        <p className="muted small">
+          {t('rulesWhy')}: {t('rcMemWindowW')}
+        </p>
+        <p className="muted small">
+          {t('rulesDecided')}: {day('2026-11-21')} · {t('rulesWho')}: {t('whoManagerAdmin')}
         </p>
       </section>
 

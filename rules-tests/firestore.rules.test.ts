@@ -594,6 +594,19 @@ describe('invitations, join requests and approval', () => {
     await assertFails(setDoc(doc(db('rita'), 'trees/treeA/invites/c1'), invite()));
     await assertSucceeds(setDoc(doc(db('alice'), 'trees/treeA/invites/c2'), { ...invite(), createdBy: 'alice' }));
   });
+
+  it('manager and admin set how long each date shows in Memories; others cannot; bad values fail', async () => {
+    const tree = (uid: string) => doc(db(uid), 'trees/treeA');
+    await assertSucceeds(updateDoc(tree('alice'), { settings: { memoryWindows: { birthday: 'month' } } }));
+    await assertSucceeds(updateDoc(tree('rita'), { settings: { memoryWindows: { birthday: 'week', postDate: 'day' } } }));
+    // Only the four known kinds, and only day, week or month.
+    await assertFails(updateDoc(tree('alice'), { settings: { memoryWindows: { separationDate: 'day' } } }));
+    await assertFails(updateDoc(tree('alice'), { settings: { memoryWindows: { birthday: 'year' } } }));
+    await assertFails(updateDoc(tree('alice'), { settings: { memoryWindows: 'week' } }));
+    // A contributor and a viewer cannot.
+    await assertFails(updateDoc(tree('carl'), { settings: { memoryWindows: { birthday: 'month' } } }));
+    await assertFails(updateDoc(tree('vera'), { settings: { memoryWindows: { birthday: 'month' } } }));
+  });
 });
 
 describe('recovery after a lost email', () => {

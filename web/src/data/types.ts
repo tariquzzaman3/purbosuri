@@ -45,7 +45,15 @@ export interface TreeSettings {
   participantsCanInvite?: boolean;
   /** How many days an invitation stays valid (1 to 30). Default 7. */
   inviteDays?: number;
+  /** How long each kind of date stays visible in Memories around its day. Missing means the exact day. */
+  memoryWindows?: Partial<Record<MemoryKind, MemoryWindow>>;
 }
+
+/** What a date in Memories is about. A marriage or divorce end date is deliberately not a kind. */
+export type MemoryKind = 'birthday' | 'deathAnniversary' | 'marriageAnniversary' | 'postDate';
+
+/** Show on the exact day, through the whole week that contains it, or through the whole month. */
+export type MemoryWindow = 'day' | 'week' | 'month';
 
 export interface JoinRequest {
   uid: string;
